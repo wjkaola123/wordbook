@@ -3,6 +3,7 @@ const searchEl = document.getElementById('search');
 
 let allWords = [];
 let pendingLookups = [];
+let syncError = '';
 
 const PENDING_TTL_MS = 60000; // 与 background.js 保持一致
 
@@ -12,9 +13,11 @@ function isPending(id) {
 }
 
 async function loadWords() {
-  const { words = [], pendingLookups: pending = [] } = await chrome.storage.local.get(['words', 'pendingLookups']);
+  const { words = [], pendingLookups: pending = [], syncError: err = '' } =
+    await chrome.storage.local.get(['words', 'pendingLookups', 'syncError']);
   allWords = words;
   pendingLookups = pending;
+  syncError = err;
   render();
 }
 
@@ -31,8 +34,12 @@ function render() {
     );
   });
 
+  const notice = syncError
+    ? `<div class="sync-error">${escapeHtml(syncError)}</div>`
+    : '';
+
   if (!filtered.length) {
-    listEl.innerHTML = `
+    listEl.innerHTML = notice + `
       <div class="empty">
         ${allWords.length ? '没有匹配的生词' : '还没有生词。在网页中选中单词，右键保存。'}
       </div>
@@ -40,7 +47,7 @@ function render() {
     return;
   }
 
-  listEl.innerHTML = filtered.map(item => `
+  listEl.innerHTML = notice + filtered.map(item => `
     <div class="item" data-id="${escapeAttr(item.id)}">
       <div class="row">
         <div class="word">${escapeHtml(item.word)}${item.pos ? ` <span class="pos-tag">${escapeHtml(item.pos)}</span>` : ''}</div>
@@ -110,6 +117,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
   if (changes.pendingLookups) {
     pendingLookups = changes.pendingLookups.newValue || [];
+    touched = true;
+  }
+
+  if (changes.syncError) {
+    syncError = changes.syncError.newValue || '';
     touched = true;
   }
 
