@@ -1,8 +1,6 @@
 const listEl = document.getElementById('list');
 const searchEl = document.getElementById('search');
 
-const POS_OPTIONS = ['', '名词', '动词', '形容词', '副词', '介词', '连词', '代词', '感叹词'];
-
 let allWords = [];
 
 async function loadWords() {
@@ -48,13 +46,6 @@ function render() {
       <label>
         释义
         <input data-field="meaning" value="${escapeAttr(item.meaning || '')}" placeholder="输入中文/英文释义" />
-      </label>
-
-      <label>
-        词性
-        <select data-field="pos">
-          ${POS_OPTIONS.map(pos => `<option value="${pos}" ${item.pos === pos ? 'selected' : ''}>${pos || '未标记'}</option>`).join('')}
-        </select>
       </label>
 
       <label>
