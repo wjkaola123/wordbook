@@ -102,17 +102,64 @@ async function lookup(text) {
   const data = await res.json();
   const dict = parseDictionary(data[1]);
 
+  let example = dict.example;
+
+  if (!example) {
+    example = await generateExample(text, dict.pos).catch(() => '');
+  }
+
+  if (!example) {
+    example = dict.fragment;
+  }
+
   return {
     meaning: (data[0] || []).map(seg => (seg && seg[0]) || '').join('').trim(),
     pos: dict.pos,
-    example: dict.example
+    example
   };
 }
 
+async function generateExample(word, pos) {
+  const isCjk = /[㐀-鿿]/.test(word);
+  const lang = isCjk ? 'Chinese' : 'English';
+  const other = isCjk ? 'English' : 'Chinese';
+  const posHint = pos ? ` (part of speech: ${pos})` : '';
+
+  const prompt = [
+    `Write ONE simple, natural ${lang} sentence, under 20 words,`,
+    `that uses the ${lang} word "${word}"${posHint}.`,
+    `Then on a new line, give its ${other} translation.`,
+    'Output exactly two lines: no numbering, no quotes, no extra explanation.'
+  ].join(' ');
+
+  const res = await fetch(`https://text.pollinations.ai/${encodeURIComponent(prompt)}`);
+  if (!res.ok) return '';
+
+  return parseGeneratedExample(await res.text());
+}
+
+function parseGeneratedExample(text) {
+  const lines = text.trim().split('\n')
+    .map(line => line
+      .replace(/[*`>_]+/g, '')
+      .replace(/^\s*(?:\d+[.)]|[•\-–])\s+/, '')
+      .trim())
+    .filter(Boolean);
+
+  if (!lines.length || lines[0].length > 300) return '';
+
+  const sentence = lines[0];
+  const translation = lines[1] || '';
+
+  return translation ? `${sentence}\n${translation}` : sentence;
+}
+
 function parseDictionary(dict) {
-  const out = { pos: '', example: '' };
+  const out = { pos: '', example: '', fragment: '' };
 
   if (!Array.isArray(dict)) return out;
+
+  const candidates = [];
 
   for (const entry of dict) {
     if (!Array.isArray(entry)) continue;
@@ -121,29 +168,43 @@ function parseDictionary(dict) {
     const pos = typeof label === 'string' ? (POS_LABELS[label] || label) : '';
 
     if (!out.pos && pos) out.pos = pos;
-    if (!out.example) out.example = findExample(entry[2]);
 
-    if (out.pos && out.example) break;
+    const details = entry[2];
+    if (!Array.isArray(details)) continue;
+
+    for (const detail of details) {
+      if (!Array.isArray(detail) || !Array.isArray(detail[1])) continue;
+
+      for (const pair of detail[1]) {
+        const sentence = Array.isArray(pair) ? pair[0] : pair;
+
+        if (typeof sentence === 'string' && sentence.trim()) {
+          candidates.push(sentence.trim());
+        }
+      }
+    }
   }
+
+  const complete = candidates.find(
+    s => !s.startsWith('…') && !s.startsWith('...') && /[.!?。！？]$/.test(s)
+  );
+
+  out.example = complete || '';
+  out.fragment = complete || !candidates.length ? '' : cleanExample(candidates[0]);
 
   return out;
 }
 
-function findExample(details) {
-  if (!Array.isArray(details)) return '';
+function cleanExample(sentence) {
+  let out = sentence.replace(/^[.…\s]+/, '').trimEnd();
 
-  for (const detail of details) {
-    if (!Array.isArray(detail) || !Array.isArray(detail[1])) continue;
+  out = out.charAt(0).toUpperCase() + out.slice(1);
 
-    const first = detail[1][0];
-    const sentence = Array.isArray(first) ? first[0] : first;
-
-    if (typeof sentence === 'string' && sentence.trim()) {
-      return sentence.trim();
-    }
+  if (!/[.!?。！？…"']$/.test(out)) {
+    out += /[㐀-鿿]/.test(out) ? '。' : '.';
   }
 
-  return '';
+  return out;
 }
 
 chrome.storage.onChanged.addListener((changes, area) => {
