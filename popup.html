@@ -98,13 +98,25 @@
     }
 
     input,
-    select {
+    select,
+    textarea {
       width: 100%;
       box-sizing: border-box;
       margin-top: 2px;
       padding: 5px 6px;
       border: 1px solid #d1d5db;
       border-radius: 5px;
+      font: inherit;
+    }
+
+    textarea {
+      resize: vertical;
+    }
+
+    .pos-tag {
+      font-weight: 400;
+      font-size: 12px;
+      color: #6b7280;
     }
 
     a {

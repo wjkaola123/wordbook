@@ -1,6 +1,8 @@
 const listEl = document.getElementById('list');
 const searchEl = document.getElementById('search');
 
+const POS_OPTIONS = ['', '名词', '动词', '形容词', '副词', '介词', '连词', '代词', '感叹词'];
+
 let allWords = [];
 
 async function loadWords() {
@@ -18,7 +20,7 @@ function render() {
     return (
       item.word.toLowerCase().includes(q) ||
       (item.meaning || '').toLowerCase().includes(q) ||
-      (item.note || '').toLowerCase().includes(q)
+      (item.example || '').toLowerCase().includes(q)
     );
   });
 
@@ -34,7 +36,7 @@ function render() {
   listEl.innerHTML = filtered.map(item => `
     <div class="item" data-id="${escapeAttr(item.id)}">
       <div class="row">
-        <div class="word">${escapeHtml(item.word)}</div>
+        <div class="word">${escapeHtml(item.word)}${item.pos ? ` <span class="pos-tag">${escapeHtml(item.pos)}</span>` : ''}</div>
         <button class="delete" data-action="delete">删除</button>
       </div>
 
@@ -49,17 +51,15 @@ function render() {
       </label>
 
       <label>
-        笔记
-        <input data-field="note" value="${escapeAttr(item.note || '')}" placeholder="例句、搭配、记忆法" />
+        词性
+        <select data-field="pos">
+          ${POS_OPTIONS.map(pos => `<option value="${pos}" ${item.pos === pos ? 'selected' : ''}>${pos || '未标记'}</option>`).join('')}
+        </select>
       </label>
 
       <label>
-        掌握度
-        <select data-field="mastery">
-          <option value="0" ${item.mastery === 0 ? 'selected' : ''}>生疏</option>
-          <option value="1" ${item.mastery === 1 ? 'selected' : ''}>眼熟</option>
-          <option value="2" ${item.mastery === 2 ? 'selected' : ''}>掌握</option>
-        </select>
+        例句
+        <textarea data-field="example" rows="2" placeholder="展示单词用法的例句，可自动生成">${escapeHtml(item.example || '')}</textarea>
       </label>
     </div>
   `).join('');
@@ -83,7 +83,7 @@ async function handleEdit(e) {
   const item = allWords.find(w => w.id === itemEl.dataset.id);
   if (!item) return;
 
-  item[field] = field === 'mastery' ? Number(e.target.value) : e.target.value;
+  item[field] = e.target.value;
   item.updatedAt = Date.now();
 
   await saveWords();

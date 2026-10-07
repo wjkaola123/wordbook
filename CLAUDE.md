@@ -19,7 +19,7 @@ No build system, dependencies, or tests — plain vanilla JS. To test changes ma
 
 Four files, two execution contexts communicating only through `chrome.storage.local`:
 
-- **background.js** — MV3 service worker. Registers a context-menu item (on `onInstalled`, after `removeAll` to avoid duplicates). On click, normalizes the selected text and saves it. Also keeps the toolbar badge (word count) in sync via `onInstalled`, `onStartup`, and a `storage.onChanged` listener.
+- **background.js** — MV3 service worker. Registers a context-menu item (on `onInstalled`, after `removeAll` to avoid duplicates). On click, normalizes the selected text and saves it, then auto-fills empty `meaning`/`pos`/`example` via the unofficial free Google Translate endpoint (`translate.googleapis.com/translate_a/single?client=gtx&dt=t&dt=bd`, permitted by `host_permissions`); CJK text translates to English, everything else to Chinese, `dt=bd` dictionary data supplies POS + example sentence (parsed defensively — the response shape is undocumented), and existing values are never overwritten. Also keeps the toolbar badge (word count) in sync via `onInstalled`, `onStartup`, and a `storage.onChanged` listener.
 - **popup.html / popup.js** — the whole UI. Renders the word list via `innerHTML` template strings (with `escapeHtml`/`escapeAttr` — preserve this escaping when adding any interpolated user content), handles search, inline editing, delete, JSON export, and clear-all.
 
 ### Data model
@@ -27,10 +27,12 @@ Four files, two execution contexts communicating only through `chrome.storage.lo
 Single key `words` in `chrome.storage.local`: an array of entry objects, newest first:
 
 ```
-{ id (crypto.randomUUID), word, meaning, note, url, title,
+{ id (crypto.randomUUID), word, meaning, pos, example, url, title,
   lastUrl, lastTitle, createdAt, updatedAt (ms epoch),
-  occurrences (int, ≥1), mastery (0=生疏, 1=眼熟, 2=掌握) }
+  occurrences (int, ≥1) }
 ```
+
+`pos` is a Chinese POS label (名词/动词/…), `example` an usage sentence; both auto-filled by the background lookup when empty.
 
 Invariants to maintain when touching either file:
 

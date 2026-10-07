@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "在网页中右键保存生疏单词，支持释义、笔记和掌握度。",
   "permissions": ["contextMenus", "storage", "tabs"],
+  "host_permissions": ["https://translate.googleapis.com/*"],
   "background": {
     "service_worker": "background.js"
   },
