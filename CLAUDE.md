@@ -34,6 +34,8 @@ Single key `words` in `chrome.storage.local`: an array of entry objects, newest 
 
 `pos` is a Chinese POS label (名词/动词/…), `example` an usage sentence; both auto-filled by the background lookup when empty.
 
+A second key, `pendingLookups`, holds `[{ id, startedAt }]` for in-flight background lookups — the badge shows `…` (amber) while non-empty and the popup renders a "正在查询…" line; entries older than 60s (set in both files) are treated as stale and dropped.
+
 Invariants to maintain when touching either file:
 
 - Deduplication is case-insensitive on `word` — an existing match increments `occurrences` and updates `updatedAt`/`lastUrl`/`lastTitle` instead of adding a duplicate.

@@ -2,10 +2,19 @@ const listEl = document.getElementById('list');
 const searchEl = document.getElementById('search');
 
 let allWords = [];
+let pendingLookups = [];
+
+const PENDING_TTL_MS = 60000; // 与 background.js 保持一致
+
+function isPending(id) {
+  const now = Date.now();
+  return pendingLookups.some(p => p.id === id && now - p.startedAt < PENDING_TTL_MS);
+}
 
 async function loadWords() {
-  const { words = [] } = await chrome.storage.local.get('words');
+  const { words = [], pendingLookups: pending = [] } = await chrome.storage.local.get(['words', 'pendingLookups']);
   allWords = words;
+  pendingLookups = pending;
   render();
 }
 
@@ -42,6 +51,8 @@ function render() {
         ${new Date(item.createdAt).toLocaleString()} · 出现 ${item.occurrences || 1} 次
         ${item.url ? `· <a href="${escapeAttr(item.url)}" target="_blank" rel="noreferrer">来源</a>` : ''}
       </div>
+
+      ${isPending(item.id) ? '<div class="loading">正在查询释义与例句…</div>' : ''}
 
       <label>
         释义
@@ -82,6 +93,46 @@ async function handleEdit(e) {
 
 listEl.addEventListener('input', handleEdit);
 listEl.addEventListener('change', handleEdit);
+
+// 后台查词完成时自动刷新；用户正在编辑时跳过，避免覆盖输入中的内容
+let refreshOnBlur = false;
+
+function isEditing() {
+  const el = document.activeElement;
+  return !!(el && el.dataset && el.dataset.field && listEl.contains(el));
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+
+  const editing = isEditing();
+  let touched = false;
+
+  if (changes.pendingLookups) {
+    pendingLookups = changes.pendingLookups.newValue || [];
+    touched = true;
+  }
+
+  if (changes.words && !editing) {
+    allWords = changes.words.newValue || [];
+    touched = true;
+  }
+
+  if (touched) {
+    if (editing) {
+      refreshOnBlur = true;
+    } else {
+      render();
+    }
+  }
+});
+
+listEl.addEventListener('focusout', (e) => {
+  if (!refreshOnBlur) return;
+  if (e.relatedTarget && listEl.contains(e.relatedTarget)) return;
+  refreshOnBlur = false;
+  loadWords();
+});
 
 listEl.addEventListener('click', async (e) => {
   if (e.target.dataset.action !== 'delete') return;

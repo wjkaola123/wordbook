@@ -1,4 +1,5 @@
 const MENU_ID = 'save-word';
+const PENDING_TTL_MS = 60000;
 
 const POS_LABELS = {
   noun: '名词',
@@ -69,7 +70,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 });
 
 async function fillTranslation(id, text) {
+  await setPending(id, true);
   const result = await lookup(text).catch(() => null);
+  await setPending(id, false);
+
   if (!result) return;
 
   const { words = [] } = await chrome.storage.local.get('words');
@@ -90,6 +94,28 @@ async function fillTranslation(id, text) {
     item.updatedAt = Date.now();
     await chrome.storage.local.set({ words });
   }
+}
+
+let pendingChain = Promise.resolve();
+
+// Tracks in-flight lookups in `pendingLookups` ([{ id, startedAt }]) so the
+// badge and popup can show a querying state. Serialized to keep concurrent
+// lookups from clobbering each other's reads/writes.
+function setPending(id, on) {
+  pendingChain = pendingChain.then(async () => {
+    const { pendingLookups = [] } = await chrome.storage.local.get('pendingLookups');
+    const now = Date.now();
+    const next = pendingLookups.filter(p => p.id !== id && now - p.startedAt < PENDING_TTL_MS);
+    if (on) next.push({ id, startedAt: now });
+    await chrome.storage.local.set({ pendingLookups: next });
+    await updateBadge();
+  }).catch(() => {});
+  return pendingChain;
+}
+
+function freshPendingCount(pendingLookups) {
+  const now = Date.now();
+  return pendingLookups.filter(p => now - p.startedAt < PENDING_TTL_MS).length;
 }
 
 async function lookup(text) {
@@ -208,20 +234,20 @@ function cleanExample(sentence) {
 }
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes.words) {
+  if (area === 'local' && (changes.words || changes.pendingLookups)) {
     updateBadge();
   }
 });
 
 async function updateBadge() {
-  const { words = [] } = await chrome.storage.local.get('words');
-  const count = words.length;
+  const { words = [], pendingLookups = [] } = await chrome.storage.local.get(['words', 'pendingLookups']);
+  const pending = freshPendingCount(pendingLookups);
 
   await chrome.action.setBadgeText({
-    text: count ? String(count) : ''
+    text: pending ? '…' : (words.length ? String(words.length) : '')
   });
 
   await chrome.action.setBadgeBackgroundColor({
-    color: '#4f46e5'
+    color: pending ? '#f59e0b' : '#4f46e5'
   });
 }
