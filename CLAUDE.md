@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-生词本 ("Wordbook") — a Chrome extension (Manifest V3) for saving unfamiliar words while browsing. Users select text on a page, right-click to save it, then review/edit words in the popup. UI text is Chinese; keep it that way.
+Wordbook (生词本) — a Chrome extension (Manifest V3) for saving unfamiliar words while browsing. Users select text on a page, right-click to save it, then review/edit words in the popup. All UI text is English; keep it that way (user-facing translation output is still Chinese by design — see below).
 
 ## Running / testing
 
@@ -32,9 +32,9 @@ Single key `words` in `chrome.storage.local`: an array of entry objects, newest 
   occurrences (int, ≥1) }
 ```
 
-`pos` is a Chinese POS label (名词/动词/…), `example` an usage sentence; both auto-filled by the background lookup when empty.
+`pos` is an English POS label (Noun/Verb/…), `example` a usage sentence; both auto-filled by the background lookup when empty. Entries saved before the UI was translated to English may still carry Chinese POS labels — they are display-only, no migration.
 
-A second key, `pendingLookups`, holds `[{ id, startedAt }]` for in-flight background lookups — the badge shows `…` (amber) while non-empty and the popup renders a "正在查询…" line; entries older than 60s (set in both files) are treated as stale and dropped. It is machine-local and never synced. A third key, `syncError`, holds the last sync-push error message (empty when healthy) for the popup banner; the synced mirror itself lives in the `sync` area as chunked `words_N` arrays.
+A second key, `pendingLookups`, holds `[{ id, startedAt }]` for in-flight background lookups — the badge shows `…` (amber) while non-empty and the popup renders a "Looking up meaning and example…" line; entries older than 60s (set in both files) are treated as stale and dropped. It is machine-local and never synced. A third key, `syncError`, holds the last sync-push error message (empty when healthy) for the popup banner; the synced mirror itself lives in the `sync` area as chunked `words_N` arrays.
 
 Invariants to maintain when touching either file:
 

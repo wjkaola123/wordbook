@@ -2,23 +2,23 @@ const MENU_ID = 'save-word';
 const PENDING_TTL_MS = 60000;
 
 const POS_LABELS = {
-  noun: '名词',
-  verb: '动词',
-  adjective: '形容词',
-  adverb: '副词',
-  preposition: '介词',
-  conjunction: '连词',
-  pronoun: '代词',
-  interjection: '感叹词',
-  numeral: '数词',
-  abbreviation: '缩写'
+  noun: 'Noun',
+  verb: 'Verb',
+  adjective: 'Adjective',
+  adverb: 'Adverb',
+  preposition: 'Preposition',
+  conjunction: 'Conjunction',
+  pronoun: 'Pronoun',
+  interjection: 'Interjection',
+  numeral: 'Numeral',
+  abbreviation: 'Abbreviation'
 };
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: MENU_ID,
-      title: '保存“%s”到生词本',
+      title: 'Save "%s" to Wordbook',
       contexts: ['selection']
     });
   });
@@ -259,12 +259,14 @@ async function updateBadge() {
   });
 }
 
-// ---------- 跨设备同步（chrome.storage.sync） ----------
-// local 的 words 始终是 UI 的唯一数据源，这里把它镜像到 sync 分片
-// （sync 单 key 上限 8KB、总量约 100KB，必须切块存储）。
+// ---------- Cross-machine sync (chrome.storage.sync) ----------
+// The local `words` array stays the single source for the UI; this section
+// mirrors it into sync chunks (sync caps one key at 8KB and the total at
+// ~100KB, so the list must be split).
 
 const SYNC_CHUNK_BYTES = 7000;
-// popup 每个按键都会写一次 words，防抖后再镜像，避免撞上 sync 每分钟 120 次的写入限制
+// The popup writes `words` on every keystroke; debounce the mirror to stay
+// under sync's 120-writes-per-minute limit.
 const SYNC_PUSH_DEBOUNCE_MS = 2000;
 
 const encoder = new TextEncoder();
@@ -272,10 +274,10 @@ const encoder = new TextEncoder();
 function chunkWords(words) {
   const chunks = [];
   let current = [];
-  let size = 2; // "[]" 的字节数
+  let size = 2; // bytes of "[]"
 
   for (const item of words) {
-    const itemSize = encoder.encode(JSON.stringify(item)).length + 1; // +1 逗号
+    const itemSize = encoder.encode(JSON.stringify(item)).length + 1; // +1 for the comma
     if (current.length && size + itemSize > SYNC_CHUNK_BYTES) {
       chunks.push(current);
       current = [];
@@ -313,10 +315,13 @@ async function mirrorToSync(words) {
   if (chunks.length) await chrome.storage.sync.set(items);
 }
 
-// 合并必须是确定性的：两台机器各算各的，结果要完全一致，否则会互相覆盖。
-// 按 word 忽略大小写配对，单边独有的直接保留；两边都有的以 updatedAt 较新者
-// 为准（相同则按 id 定胜负、远端优先），空字段用另一边补齐；occurrences 取
-// 最大值而不是相加——同一份数据合并两次不能让次数翻倍。
+// The merge must be deterministic: both machines compute it independently
+// and must reach identical results, or they'd overwrite each other forever.
+// Pair entries case-insensitively by word; entries only one side has are kept
+// as-is. When both sides have a word, the entry with the newer `updatedAt`
+// wins (ties broken by id, remote preferred), empty `meaning`/`pos`/`example`
+// are backfilled from the losing side, and `occurrences` takes the max, never
+// the sum — merging the same state twice must not double the count.
 function mergeWords(local, remote) {
   const map = new Map();
 
@@ -373,8 +378,10 @@ async function pushWordsToSync() {
   }
 }
 
-// 启动、安装、远端分片变化时的对账：把远端合并进本地；本地若也有远端没有的
-// 内容（比如新机器对空云端），通过随后的防抖推送或直接镜像补到远端。
+// Reconcile on startup, install, and remote chunk changes: merge the remote
+// list into local; if local also holds content the remote lacks (e.g. a new
+// machine against an empty cloud), push it back via the debounced push or a
+// direct mirror.
 async function reconcileSync() {
   try {
     const remote = await readSyncWords();
@@ -382,7 +389,7 @@ async function reconcileSync() {
     const merged = mergeWords(local, remote);
 
     if (!sameWords(merged, local)) {
-      await chrome.storage.local.set({ words: merged }); // 写入会触发防抖推送
+      await chrome.storage.local.set({ words: merged }); // this write triggers the debounced push
     } else if (!sameWords(merged, remote)) {
       await mirrorToSync(merged);
     }
@@ -395,7 +402,7 @@ async function reconcileSync() {
 
 function syncErrorMessage(err) {
   const detail = err && err.message ? err.message : String(err);
-  return `同步失败：${detail}（sync 容量上限约 100KB，超出后新词不再同步）`;
+  return `Sync failed: ${detail} (sync storage caps at ~100KB; new words stop syncing beyond it)`;
 }
 
 async function setSyncError(message) {

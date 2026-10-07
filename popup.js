@@ -5,7 +5,7 @@ let allWords = [];
 let pendingLookups = [];
 let syncError = '';
 
-const PENDING_TTL_MS = 60000; // 与 background.js 保持一致
+const PENDING_TTL_MS = 60000; // keep in sync with background.js
 
 function isPending(id) {
   const now = Date.now();
@@ -41,7 +41,7 @@ function render() {
   if (!filtered.length) {
     listEl.innerHTML = notice + `
       <div class="empty">
-        ${allWords.length ? '没有匹配的生词' : '还没有生词。在网页中选中单词，右键保存。'}
+        ${allWords.length ? 'No matching words' : 'No words yet. Select text on a page and right-click to save it.'}
       </div>
     `;
     return;
@@ -51,24 +51,24 @@ function render() {
     <div class="item" data-id="${escapeAttr(item.id)}">
       <div class="row">
         <div class="word">${escapeHtml(item.word)}${item.pos ? ` <span class="pos-tag">${escapeHtml(item.pos)}</span>` : ''}</div>
-        <button class="delete" data-action="delete">删除</button>
+        <button class="delete" data-action="delete">Delete</button>
       </div>
 
       <div class="meta">
-        ${new Date(item.createdAt).toLocaleString()} · 出现 ${item.occurrences || 1} 次
-        ${item.url ? `· <a href="${escapeAttr(item.url)}" target="_blank" rel="noreferrer">来源</a>` : ''}
+        ${new Date(item.createdAt).toLocaleString()} · seen ${item.occurrences || 1} times
+        ${item.url ? `· <a href="${escapeAttr(item.url)}" target="_blank" rel="noreferrer">source</a>` : ''}
       </div>
 
-      ${isPending(item.id) ? '<div class="loading">正在查询释义与例句…</div>' : ''}
+      ${isPending(item.id) ? '<div class="loading">Looking up meaning and example…</div>' : ''}
 
       <label>
-        释义
-        <input data-field="meaning" value="${escapeAttr(item.meaning || '')}" placeholder="输入中文/英文释义" />
+        Meaning
+        <input data-field="meaning" value="${escapeAttr(item.meaning || '')}" placeholder="Enter a meaning (Chinese or English)" />
       </label>
 
       <label>
-        例句
-        <textarea data-field="example" rows="2" placeholder="展示单词用法的例句，可自动生成">${escapeHtml(item.example || '')}</textarea>
+        Example
+        <textarea data-field="example" rows="2" placeholder="Usage example; auto-filled when possible">${escapeHtml(item.example || '')}</textarea>
       </label>
     </div>
   `).join('');
@@ -101,7 +101,8 @@ async function handleEdit(e) {
 listEl.addEventListener('input', handleEdit);
 listEl.addEventListener('change', handleEdit);
 
-// 后台查词完成时自动刷新；用户正在编辑时跳过，避免覆盖输入中的内容
+// Refresh when a background lookup finishes; skip while the user is editing
+// so in-progress input isn't overwritten
 let refreshOnBlur = false;
 
 function isEditing() {
@@ -177,7 +178,7 @@ document.getElementById('export').addEventListener('click', () => {
 });
 
 document.getElementById('clear').addEventListener('click', async () => {
-  if (!confirm('确定清空所有生词？')) return;
+  if (!confirm('Clear all saved words?')) return;
 
   allWords = [];
   await saveWords();
