@@ -26,6 +26,31 @@ function posLabel(pos) {
   return POS_LABELS[pos] || POS_LABELS[pos.toLowerCase()] || pos;
 }
 
+// Abbreviate the English label the way dictionaries set it (display only)
+const POS_ABBREVIATIONS = {
+  Noun: 'n.',
+  Verb: 'v.',
+  Adjective: 'adj.',
+  Adverb: 'adv.',
+  Preposition: 'prep.',
+  Conjunction: 'conj.',
+  Pronoun: 'pron.',
+  Interjection: 'interj.',
+  Numeral: 'num.',
+  Abbreviation: 'abbr.'
+};
+
+function posAbbr(pos) {
+  const label = posLabel(pos);
+  return POS_ABBREVIATIONS[label] || label;
+}
+
+// Citation text for the source link: page title, truncated
+function sourceTitle(item) {
+  const title = item.title || item.lastTitle || 'source';
+  return title.length > 32 ? title.slice(0, 31) + '…' : title;
+}
+
 function isPending(id) {
   const now = Date.now();
   return pendingLookups.some(p => p.id === id && now - p.startedAt < PENDING_TTL_MS);
@@ -69,40 +94,27 @@ function render() {
   listEl.innerHTML = notice + filtered.map(item => `
     <div class="item" data-id="${escapeAttr(item.id)}">
       <div class="row">
-        <div class="word">${escapeHtml(item.word)}${item.pos ? ` <span class="pos-tag">${escapeHtml(posLabel(item.pos))}</span>` : ''}</div>
-        <button class="delete" data-action="delete">Delete</button>
-      </div>
-
-      <div class="meta">
-        ${new Date(item.createdAt).toLocaleString()} · seen ${item.occurrences || 1} times
-        ${item.url ? `· <a href="${escapeAttr(item.url)}" target="_blank" rel="noreferrer">source</a>` : ''}
+        <div class="word">${escapeHtml(item.word)}${item.pos ? ` <span class="pos-tag">${escapeHtml(posAbbr(item.pos))}</span>` : ''}${(item.occurrences || 1) > 1 ? `<span class="freq" title="Seen ${item.occurrences} times">${item.occurrences}</span>` : ''}</div>
+        <button class="delete" data-action="delete" aria-label="Delete word">✕</button>
       </div>
 
       ${isPending(item.id) ? '<div class="loading">Looking up meaning and example…</div>' : ''}
 
-      <label>
-        Meaning
-        <input data-field="meaning" value="${escapeAttr(item.meaning || '')}" placeholder="Enter a meaning (Chinese or English)" />
-      </label>
+      <input data-field="meaning" aria-label="Meaning" value="${escapeAttr(item.meaning || '')}" placeholder="Meaning (Chinese or English)" />
 
-      <label>
-        Example
-        <textarea data-field="example" rows="2" placeholder="Usage example; auto-filled when possible">${escapeHtml(item.example || '')}</textarea>
-      </label>
+      <textarea data-field="example" aria-label="Example" rows="2" placeholder="Usage example; filled in automatically">${escapeHtml(item.example || '')}</textarea>
+
+      <div class="meta">
+        <span>${new Date(item.createdAt).toLocaleDateString()}</span>
+        ${item.url ? `<a class="source" href="${escapeAttr(item.url)}" target="_blank" rel="noreferrer" title="${escapeAttr(item.url)}">${escapeHtml(sourceTitle(item))}</a>` : ''}
+      </div>
     </div>
   `).join('');
 }
 
-async function saveWords() {
-  await chrome.storage.local.set({ words: allWords });
-
-  const count = allWords.length;
-  await chrome.action.setBadgeText({
-    text: count ? String(count) : ''
-  });
-}
-
-async function handleEdit(e) {
+// The popup never writes `words` itself (the background owns it through its
+// serialized write queue); edits are sent as targeted messages instead.
+function handleEdit(e) {
   const itemEl = e.target.closest('.item');
   const field = e.target.dataset.field;
 
@@ -114,7 +126,7 @@ async function handleEdit(e) {
   item[field] = e.target.value;
   item.updatedAt = Date.now();
 
-  await saveWords();
+  chrome.runtime.sendMessage({ type: 'editWord', id: item.id, field, value: e.target.value });
 }
 
 listEl.addEventListener('input', handleEdit);
@@ -166,15 +178,14 @@ listEl.addEventListener('focusout', (e) => {
   loadWords();
 });
 
-listEl.addEventListener('click', async (e) => {
+listEl.addEventListener('click', (e) => {
   if (e.target.dataset.action !== 'delete') return;
 
   const itemEl = e.target.closest('.item');
   if (!itemEl) return;
 
   allWords = allWords.filter(w => w.id !== itemEl.dataset.id);
-
-  await saveWords();
+  chrome.runtime.sendMessage({ type: 'deleteWord', id: itemEl.dataset.id });
   render();
 });
 
@@ -196,11 +207,11 @@ document.getElementById('export').addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
-document.getElementById('clear').addEventListener('click', async () => {
+document.getElementById('clear').addEventListener('click', () => {
   if (!confirm('Clear all saved words?')) return;
 
   allWords = [];
-  await saveWords();
+  chrome.runtime.sendMessage({ type: 'clearWords' });
   render();
 });
 

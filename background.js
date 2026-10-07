@@ -37,6 +37,7 @@ chrome.runtime.onInstalled.addListener(() => {
 
   updateBadge();
   reconcileSync();
+  ensureBackfillAlarm();
 });
 
 chrome.runtime.onStartup.addListener(() => {
@@ -50,39 +51,87 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   const word = (info.selectionText || '').replace(/\s+/g, ' ').trim();
   if (!word) return;
 
-  const { words = [] } = await chrome.storage.local.get('words');
-  const now = Date.now();
-  const key = word.toLowerCase();
+  const url = tab?.url || '';
+  const title = tab?.title || '';
+  let saved = null;
 
-  const existing = words.find(item => item.word.toLowerCase() === key);
+  await enqueueWordsWrite(words => {
+    const now = Date.now();
+    const existing = words.find(item => item.word.toLowerCase() === word.toLowerCase());
 
-  if (existing) {
-    existing.occurrences = (existing.occurrences || 1) + 1;
-    existing.updatedAt = now;
-    existing.lastUrl = tab?.url || existing.lastUrl || '';
-    existing.lastTitle = tab?.title || existing.lastTitle || '';
-  } else {
-    words.unshift({
-      id: crypto.randomUUID(),
-      word,
-      meaning: '',
-      pos: '',
-      example: '',
-      url: tab?.url || '',
-      title: tab?.title || '',
-      createdAt: now,
-      updatedAt: now,
-      occurrences: 1
-    });
-  }
-
-  await chrome.storage.local.set({ words });
+    if (existing) {
+      existing.occurrences = (existing.occurrences || 1) + 1;
+      existing.updatedAt = now;
+      existing.lastUrl = url || existing.lastUrl || '';
+      existing.lastTitle = title || existing.lastTitle || '';
+      saved = existing;
+    } else {
+      saved = {
+        id: crypto.randomUUID(),
+        word,
+        meaning: '',
+        pos: '',
+        example: '',
+        url,
+        title,
+        createdAt: now,
+        updatedAt: now,
+        occurrences: 1
+      };
+      words.unshift(saved);
+    }
+  });
   await updateBadge();
 
-  const saved = existing || words[0];
   if (saved && (!saved.meaning || !saved.pos || !saved.example)) {
     await fillTranslation(saved.id, word);
   }
+  ensureBackfillAlarm();
+});
+
+// ---------- Backfill of missing / degenerate lookups ----------
+// Lookups can fail for good reasons: the AI endpoint throttles to ~1 request
+// per 30s (HTTP 402, see AI_MIN_GAP_MS), the network can drop, and the MV3
+// service worker can be killed mid-lookup. A periodic alarm retries words
+// saved in the last 24h whose meaning/pos/example never arrived (or arrived
+// as a single-token fragment), a couple per minute, until they're complete —
+// then removes itself so it stops waking the worker.
+const BACKFILL_ALARM = 'wordbook-backfill';
+const BACKFILL_MAX_PER_RUN = 2;
+const BACKFILL_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+async function ensureBackfillAlarm() {
+  const alarm = await chrome.alarms.get(BACKFILL_ALARM);
+  if (!alarm) {
+    chrome.alarms.create(BACKFILL_ALARM, { delayInMinutes: 1, periodInMinutes: 1 });
+  }
+}
+
+function needsBackfill(item, now, pending) {
+  if (!item.createdAt || now - item.createdAt > BACKFILL_WINDOW_MS) return false;
+  if (pending.some(p => p.id === item.id)) return false;
+  return !item.meaning || !item.pos || !item.example || isDegenerateExample(item);
+}
+
+async function backfillMissing() {
+  const { words = [], pendingLookups = [] } = await chrome.storage.local.get(['words', 'pendingLookups']);
+  const now = Date.now();
+  const pending = pendingLookups.filter(p => now - p.startedAt < PENDING_TTL_MS);
+  const targets = words.filter(item => needsBackfill(item, now, pending)).slice(0, BACKFILL_MAX_PER_RUN);
+
+  if (!targets.length) {
+    await chrome.alarms.clear(BACKFILL_ALARM);
+    return;
+  }
+
+  for (const item of targets) {
+    await fillTranslation(item.id, item.word);
+  }
+  ensureBackfillAlarm();
+}
+
+chrome.alarms.onAlarm.addListener(alarm => {
+  if (alarm.name === BACKFILL_ALARM) backfillMissing();
 });
 
 async function fillTranslation(id, text) {
@@ -92,25 +141,84 @@ async function fillTranslation(id, text) {
 
   if (!result) return;
 
-  const { words = [] } = await chrome.storage.local.get('words');
-  const item = words.find(w => w.id === id);
+  await enqueueWordsWrite(words => {
+    const item = words.find(w => w.id === id);
+    if (!item) return false;
 
-  if (!item) return;
+    let changed = false;
 
-  let changed = false;
+    for (const field of ['meaning', 'pos', 'example']) {
+      if (!item[field] && result[field]) {
+        item[field] = result[field];
+        changed = true;
+      }
+    }
 
-  for (const field of ['meaning', 'pos', 'example']) {
-    if (!item[field] && result[field]) {
-      item[field] = result[field];
+    // Upgrade a single-token fragment ("Perfect.") once a real example arrives.
+    if (item.example && isDegenerateExample(item) &&
+        result.example && !isDegenerateExample({ word: item.word, example: result.example })) {
+      item.example = result.example;
       changed = true;
     }
-  }
 
-  if (changed) {
+    if (!changed) return false;
     item.updatedAt = Date.now();
-    await chrome.storage.local.set({ words });
-  }
+  });
 }
+
+// A one-token "sentence" is the cleaned corpus fragment Google's dictionary
+// hands out when it has no real example ("Perfect." for "perfect") — it means
+// the AI generation failed, so treat it as missing on later backfills.
+// CJK sentences use no spaces, so this only applies to Latin text.
+function isDegenerateExample(item) {
+  const ex = (item.example || '').trim();
+  if (!ex || /[㐀-鿿]/.test(ex)) return false;
+  return !ex.includes(' ');
+}
+
+// Every `words` mutation runs through this serialized queue: each step
+// re-reads the array inside the critical section before writing it back, so
+// concurrent saves, lookup fill-ins, sync merges, and popup edits can never
+// clobber each other with stale snapshots. Never write `words` with a bare
+// storage.local.set outside this queue.
+let wordsChain = Promise.resolve();
+
+function enqueueWordsWrite(mutate) {
+  wordsChain = wordsChain.then(async () => {
+    const { words = [] } = await chrome.storage.local.get('words');
+    if (mutate(words) !== false) await chrome.storage.local.set({ words });
+  }).catch(() => {});
+  return wordsChain;
+}
+
+// The popup can't join the queue across contexts, so it never writes `words`
+// directly — it sends targeted mutations here instead.
+const EDITABLE_FIELDS = ['meaning', 'pos', 'example'];
+
+chrome.runtime.onMessage.addListener(msg => {
+  if (!msg || typeof msg !== 'object') return;
+
+  if (msg.type === 'editWord') {
+    if (!EDITABLE_FIELDS.includes(msg.field)) return;
+    enqueueWordsWrite(words => {
+      const item = words.find(w => w.id === msg.id);
+      if (!item) return false;
+      item[msg.field] = String(msg.value ?? '');
+      item.updatedAt = Date.now();
+    });
+  } else if (msg.type === 'deleteWord') {
+    enqueueWordsWrite(words => {
+      const i = words.findIndex(w => w.id === msg.id);
+      if (i === -1) return false;
+      words.splice(i, 1);
+    });
+  } else if (msg.type === 'clearWords') {
+    enqueueWordsWrite(words => {
+      if (!words.length) return false;
+      words.length = 0;
+    });
+  }
+});
 
 let pendingChain = Promise.resolve();
 
@@ -151,7 +259,7 @@ async function lookup(text) {
   // "vibe" returns no data[1], leaving both POS and corpus example empty.
   // Fill the gaps from the free AI endpoint in one call.
   if (!example || !pos) {
-    const generated = await generateExample(text, pos).catch(() => null);
+    const generated = await enqueueAiCall(() => generateExample(text, pos));
     if (generated) {
       if (!example) example = generated.example;
       if (!pos) pos = generated.pos;
@@ -167,6 +275,27 @@ async function lookup(text) {
     pos,
     example
   };
+}
+
+// The anonymous text.pollinations.ai tier serves roughly one request per 30s
+// and answers the rest with HTTP 402 — measured on this network. Serialize AI
+// generation and space the calls out; failures are NOT retried inline, the
+// backfill alarm below picks the entry up again (the service worker can die
+// during a 30s wait, so the alarm is the reliable path).
+const AI_MIN_GAP_MS = 31000;
+
+let aiLastAt = 0;
+let aiChain = Promise.resolve();
+
+function enqueueAiCall(fn) {
+  const run = aiChain.then(async () => {
+    const wait = aiLastAt + AI_MIN_GAP_MS - Date.now();
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    aiLastAt = Date.now();
+    return fn();
+  }).catch(() => null);
+  aiChain = run.then(() => {});
+  return run;
 }
 
 async function generateExample(word, pos) {
@@ -413,13 +542,25 @@ async function pushWordsToSync() {
 async function reconcileSync() {
   try {
     const remote = await readSyncWords();
-    const { words: local = [] } = await chrome.storage.local.get('words');
-    const merged = mergeWords(local, remote);
+    let localChanged = false;
 
-    if (!sameWords(merged, local)) {
-      await chrome.storage.local.set({ words: merged }); // this write triggers the debounced push
-    } else if (!sameWords(merged, remote)) {
-      await mirrorToSync(merged);
+    // Merge inside the write queue so a concurrent save or lookup fill-in
+    // isn't clobbered by the merge writing back a stale snapshot. The write
+    // itself triggers the debounced push back to sync.
+    await enqueueWordsWrite(words => {
+      const merged = mergeWords(words, remote);
+      if (sameWords(merged, words)) return false;
+      words.splice(0, words.length, ...merged);
+      localChanged = true;
+    });
+
+    if (!localChanged) {
+      // Local already holds the merge; push back directly only when the
+      // remote lacks local content (e.g. a new machine against an empty cloud).
+      const { words: local = [] } = await chrome.storage.local.get('words');
+      if (!sameWords(mergeWords(local, remote), remote)) {
+        await mirrorToSync(local);
+      }
     }
 
     await setSyncError('');
