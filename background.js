@@ -1,6 +1,8 @@
 const MENU_ID = 'save-word';
 const PENDING_TTL_MS = 60000;
 
+// Google's dictionary data returns POS in the target language: English keys
+// for the CJK→en path, Chinese ones for the →zh-CN path.
 const POS_LABELS = {
   noun: 'Noun',
   verb: 'Verb',
@@ -11,7 +13,17 @@ const POS_LABELS = {
   pronoun: 'Pronoun',
   interjection: 'Interjection',
   numeral: 'Numeral',
-  abbreviation: 'Abbreviation'
+  abbreviation: 'Abbreviation',
+  名词: 'Noun',
+  动词: 'Verb',
+  形容词: 'Adjective',
+  副词: 'Adverb',
+  介词: 'Preposition',
+  连词: 'Conjunction',
+  代词: 'Pronoun',
+  感叹词: 'Interjection',
+  数词: 'Numeral',
+  缩写: 'Abbreviation'
 };
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -133,9 +145,17 @@ async function lookup(text) {
   const dict = parseDictionary(data[1]);
 
   let example = dict.example;
+  let pos = dict.pos;
 
-  if (!example) {
-    example = await generateExample(text, dict.pos).catch(() => '');
+  // The dictionary data (dt=bd) skips some informal words entirely — e.g.
+  // "vibe" returns no data[1], leaving both POS and corpus example empty.
+  // Fill the gaps from the free AI endpoint in one call.
+  if (!example || !pos) {
+    const generated = await generateExample(text, pos).catch(() => null);
+    if (generated) {
+      if (!example) example = generated.example;
+      if (!pos) pos = generated.pos;
+    }
   }
 
   if (!example) {
@@ -144,7 +164,7 @@ async function lookup(text) {
 
   return {
     meaning: (data[0] || []).map(seg => (seg && seg[0]) || '').join('').trim(),
-    pos: dict.pos,
+    pos,
     example
   };
 }
@@ -159,14 +179,18 @@ async function generateExample(word, pos) {
     `Write ONE simple, natural ${lang} sentence, under 20 words,`,
     `that uses the ${lang} word "${word}"${posHint}.`,
     `Then on a new line, give its ${other} translation.`,
-    'Output exactly two lines: no numbering, no quotes, no extra explanation.'
+    'Then on a last line, state the part of speech of the word',
+    '(one of: noun, verb, adjective, adverb, preposition, conjunction, pronoun, interjection, numeral, abbreviation).',
+    'Output exactly three lines: no numbering, no quotes, no extra explanation.'
   ].join(' ');
 
   const res = await fetch(`https://text.pollinations.ai/${encodeURIComponent(prompt)}`);
-  if (!res.ok) return '';
+  if (!res.ok) return null;
 
   return parseGeneratedExample(await res.text());
 }
+
+const POS_PATTERN = /(noun|verb|adjective|adverb|preposition|conjunction|pronoun|interjection|numeral|abbreviation)/;
 
 function parseGeneratedExample(text) {
   const lines = text.trim().split('\n')
@@ -176,12 +200,16 @@ function parseGeneratedExample(text) {
       .trim())
     .filter(Boolean);
 
-  if (!lines.length || lines[0].length > 300) return '';
+  if (!lines.length || lines[0].length > 300) return null;
 
   const sentence = lines[0];
   const translation = lines[1] || '';
+  const match = POS_PATTERN.exec((lines[2] || '').toLowerCase());
 
-  return translation ? `${sentence}\n${translation}` : sentence;
+  return {
+    example: translation ? `${sentence}\n${translation}` : sentence,
+    pos: match ? POS_LABELS[match[1]] : ''
+  };
 }
 
 function parseDictionary(dict) {

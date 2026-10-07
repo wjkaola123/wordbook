@@ -7,6 +7,25 @@ let syncError = '';
 
 const PENDING_TTL_MS = 60000; // keep in sync with background.js
 
+// Legacy entries store Chinese POS labels; map them for display only
+// (keep in sync with POS_LABELS in background.js)
+const POS_LABELS = {
+  名词: 'Noun',
+  动词: 'Verb',
+  形容词: 'Adjective',
+  副词: 'Adverb',
+  介词: 'Preposition',
+  连词: 'Conjunction',
+  代词: 'Pronoun',
+  感叹词: 'Interjection',
+  数词: 'Numeral',
+  缩写: 'Abbreviation'
+};
+
+function posLabel(pos) {
+  return POS_LABELS[pos] || POS_LABELS[pos.toLowerCase()] || pos;
+}
+
 function isPending(id) {
   const now = Date.now();
   return pendingLookups.some(p => p.id === id && now - p.startedAt < PENDING_TTL_MS);
@@ -50,7 +69,7 @@ function render() {
   listEl.innerHTML = notice + filtered.map(item => `
     <div class="item" data-id="${escapeAttr(item.id)}">
       <div class="row">
-        <div class="word">${escapeHtml(item.word)}${item.pos ? ` <span class="pos-tag">${escapeHtml(item.pos)}</span>` : ''}</div>
+        <div class="word">${escapeHtml(item.word)}${item.pos ? ` <span class="pos-tag">${escapeHtml(posLabel(item.pos))}</span>` : ''}</div>
         <button class="delete" data-action="delete">Delete</button>
       </div>
 
