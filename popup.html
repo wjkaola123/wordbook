@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>生词本</title>
+  <style>
+    :root {
+      color-scheme: light;
+    }
+
+    body {
+      width: 380px;
+      margin: 0;
+      font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: #111827;
+      background: #f9fafb;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px;
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    h1 {
+      flex: 1;
+      margin: 0;
+      font-size: 16px;
+    }
+
+    button {
+      border: 1px solid #d1d5db;
+      background: #fff;
+      border-radius: 6px;
+      padding: 5px 8px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #f3f4f6;
+    }
+
+    #search {
+      width: calc(100% - 24px);
+      margin: 10px 12px;
+      padding: 7px 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+    }
+
+    #list {
+      padding: 0 12px 12px;
+      max-height: 480px;
+      overflow: auto;
+    }
+
+    .item {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .word {
+      flex: 1;
+      font-weight: 700;
+      font-size: 15px;
+      word-break: break-word;
+    }
+
+    .delete {
+      color: #b91c1c;
+      border-color: #fecaca;
+    }
+
+    .meta {
+      color: #6b7280;
+      font-size: 12px;
+      margin: 4px 0 8px;
+    }
+
+    label {
+      display: block;
+      margin-top: 6px;
+      color: #374151;
+      font-size: 12px;
+    }
+
+    input,
+    select {
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 2px;
+      padding: 5px 6px;
+      border: 1px solid #d1d5db;
+      border-radius: 5px;
+    }
+
+    a {
+      color: #4f46e5;
+      font-size: 12px;
+    }
+
+    .empty {
+      color: #6b7280;
+      text-align: center;
+      padding: 30px 10px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>生词本</h1>
+    <button id="export">导出</button>
+    <button id="clear">清空</button>
+  </header>
+
+  <input id="search" placeholder="搜索单词 / 释义 / 笔记" />
+  <div id="list"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

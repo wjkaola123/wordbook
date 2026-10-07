@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "生词本",
+  "version": "1.0.0",
+  "description": "在网页中右键保存生疏单词，支持释义、笔记和掌握度。",
+  "permissions": ["contextMenus", "storage", "tabs"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "生词本",
+    "default_popup": "popup.html"
+  }
+}
