@@ -200,6 +200,12 @@ document.getElementById('export').addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
+// The expand button opens the same list in a full tab (full.html reuses
+// this script and the shared stylesheet).
+document.getElementById('openFull')?.addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('full.html') });
+});
+
 document.getElementById('clear').addEventListener('click', () => {
   if (!confirm('Clear all saved words?')) return;
 

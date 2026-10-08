@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Wordbook</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* Full-tab layout: the same list the popup shows, widened to a
+       book-page column and scrolled by the page instead of a box. */
+    body {
+      width: auto;
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 0 28px 56px;
+    }
+
+    #search {
+      width: 100%;
+      margin: 2px 0 4px;
+    }
+
+    #list {
+      max-height: none;
+      overflow: visible;
+      padding: 2px 4px 14px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><span class="mark">Wordbook</span></h1>
+    <button id="export" aria-label="Export words as JSON" title="Export words as JSON">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M8 2.75v7.5M4.75 7.5 8 10.75 11.25 7.5M3.25 13.25h9.5" />
+      </svg>
+    </button>
+    <button id="clear" aria-label="Clear all words" title="Clear all words">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M2.75 4.25h10.5M6.25 4V3.4a.9.9 0 0 1 .9-.9h1.7a.9.9 0 0 1 .9.9v.6M4.25 4.25l.55 8.2a1 1 0 0 0 1 .93h4.4a1 1 0 0 0 1-.93l.55-8.2M6.6 7.25v3.5M9.4 7.25v3.5" />
+      </svg>
+    </button>
+  </header>
+
+  <input id="search" placeholder="Search words, meanings, examples" autofocus />
+  <div id="list"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
