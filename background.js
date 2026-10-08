@@ -91,13 +91,16 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
 // ---------- Backfill of missing / degenerate lookups ----------
 // Lookups can fail for good reasons: the AI endpoint throttles to ~1 request
-// per 30s (HTTP 402, see AI_MIN_GAP_MS), the network can drop, and the MV3
-// service worker can be killed mid-lookup. A periodic alarm retries words
-// saved in the last 24h whose meaning/pos/example never arrived (or arrived
-// as a single-token fragment), a couple per minute, until they're complete —
-// then removes itself so it stops waking the worker.
+// per 30s (HTTP 402, see AI_MIN_GAP_MS) or goes down entirely, the network
+// can drop, and the MV3 service worker can be killed mid-lookup. A periodic
+// alarm silently retries words saved in the last 24h whose meaning/pos/
+// example never arrived (or arrived as a single-token fragment), a couple per
+// minute, up to BACKFILL_MAX_ATTEMPTS tries per word — then removes itself so
+// a dead endpoint can't keep it (and the badge/pending churn) alive forever.
+// An explicit re-save of the word resets its count.
 const BACKFILL_ALARM = 'wordbook-backfill';
 const BACKFILL_MAX_PER_RUN = 2;
+const BACKFILL_MAX_ATTEMPTS = 5;
 const BACKFILL_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 async function ensureBackfillAlarm() {
@@ -107,43 +110,86 @@ async function ensureBackfillAlarm() {
   }
 }
 
-function needsBackfill(item, now, pending) {
+function needsBackfill(item, now, pending, fails = {}) {
   if (!item.createdAt || now - item.createdAt > BACKFILL_WINDOW_MS) return false;
   if (pending.some(p => p.id === item.id)) return false;
+  if ((fails[item.id] || 0) >= BACKFILL_MAX_ATTEMPTS) return false;
   return !item.meaning || !item.pos || !item.example || isDegenerateExample(item);
 }
 
+// One run at a time: alarm events fire on schedule even while a previous run
+// is still awaiting the throttled AI queue, and overlapping runs would queue
+// duplicate lookups for the same words.
+let backfillRunning = false;
+
 async function backfillMissing() {
-  const { words = [], pendingLookups = [] } = await chrome.storage.local.get(['words', 'pendingLookups']);
-  const now = Date.now();
-  const pending = pendingLookups.filter(p => now - p.startedAt < PENDING_TTL_MS);
-  const targets = words.filter(item => needsBackfill(item, now, pending)).slice(0, BACKFILL_MAX_PER_RUN);
+  if (backfillRunning) return;
+  backfillRunning = true;
 
-  if (!targets.length) {
-    await chrome.alarms.clear(BACKFILL_ALARM);
-    return;
-  }
+  try {
+    const { words = [], pendingLookups = [], backfillFails = {} } =
+      await chrome.storage.local.get(['words', 'pendingLookups', 'backfillFails']);
+    const now = Date.now();
+    const pending = pendingLookups.filter(p => now - p.startedAt < PENDING_TTL_MS);
+    const liveIds = new Set(words.map(w => w.id));
+    const fails = Object.fromEntries(
+      Object.entries(backfillFails).filter(([id]) => liveIds.has(id))
+    );
 
-  for (const item of targets) {
-    await fillTranslation(item.id, item.word);
+    const targets = words
+      .filter(item => needsBackfill(item, now, pending, fails))
+      .slice(0, BACKFILL_MAX_PER_RUN);
+
+    for (const item of targets) {
+      const ok = await fillTranslation(item.id, item.word, { silent: true });
+      if (ok) delete fails[item.id];
+      else fails[item.id] = (fails[item.id] || 0) + 1;
+    }
+
+    const done = !words.some(item => needsBackfill(item, now, pending, fails));
+
+    if (JSON.stringify(fails) !== JSON.stringify(backfillFails)) {
+      await chrome.storage.local.set({ backfillFails: fails });
+    }
+    if (done) await chrome.alarms.clear(BACKFILL_ALARM);
+  } finally {
+    backfillRunning = false;
   }
-  ensureBackfillAlarm();
 }
 
 chrome.alarms.onAlarm.addListener(alarm => {
-  if (alarm.name === BACKFILL_ALARM) backfillMissing();
+  // Returned so tests (and anything else awaiting) can observe the run;
+  // Chrome itself ignores the return value.
+  if (alarm.name === BACKFILL_ALARM) return backfillMissing();
 });
 
-async function fillTranslation(id, text) {
-  await setPending(id, true);
-  const result = await lookup(text).catch(() => null);
-  await setPending(id, false);
+// silent: alarm-triggered backfill — no "Looking up…" indicator (the word
+// keeps showing what it has until better data lands), and outcomes are
+// counted in `backfillFails`. Explicit saves stay visible and reset the
+// failure count, granting fresh backfill attempts.
+async function fillTranslation(id, text, { silent = false } = {}) {
+  if (!silent) {
+    await setPending(id, true);
+    const { backfillFails = {} } = await chrome.storage.local.get('backfillFails');
+    if (backfillFails[id]) {
+      delete backfillFails[id];
+      await chrome.storage.local.set({ backfillFails });
+    }
+  }
 
-  if (!result) return;
+  const result = await lookup(text).catch(() => null);
+  if (!silent) await setPending(id, false);
+
+  if (!result) return false;
+
+  let complete = false;
 
   await enqueueWordsWrite(words => {
     const item = words.find(w => w.id === id);
-    if (!item) return false;
+    if (!item) {
+      complete = true; // deleted meanwhile — nothing left to retry
+      return false;
+    }
 
     let changed = false;
 
@@ -161,9 +207,12 @@ async function fillTranslation(id, text) {
       changed = true;
     }
 
+    complete = Boolean(item.meaning && item.pos && item.example && !isDegenerateExample(item));
     if (!changed) return false;
     item.updatedAt = Date.now();
   });
+
+  return complete;
 }
 
 // A one-token "sentence" is the cleaned corpus fragment Google's dictionary
@@ -246,7 +295,7 @@ async function lookup(text) {
   const target = /[㐀-鿿]/.test(text) ? 'en' : 'zh-CN';
   const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&dt=bd&q=${encodeURIComponent(text)}`;
 
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
   if (!res.ok) return null;
 
   const data = await res.json();
@@ -313,7 +362,7 @@ async function generateExample(word, pos) {
     'Output exactly three lines: no numbering, no quotes, no extra explanation.'
   ].join(' ');
 
-  const res = await fetch(`https://text.pollinations.ai/${encodeURIComponent(prompt)}`);
+  const res = await fetch(`https://text.pollinations.ai/${encodeURIComponent(prompt)}`, { signal: AbortSignal.timeout(30000) });
   if (!res.ok) return null;
 
   return parseGeneratedExample(await res.text());
