@@ -45,12 +45,6 @@ function posAbbr(pos) {
   return POS_ABBREVIATIONS[label] || label;
 }
 
-// Citation text for the source link: page title, truncated
-function sourceTitle(item) {
-  const title = item.title || item.lastTitle || 'source';
-  return title.length > 32 ? title.slice(0, 31) + '…' : title;
-}
-
 function isPending(id) {
   const now = Date.now();
   return pendingLookups.some(p => p.id === id && now - p.startedAt < PENDING_TTL_MS);
@@ -106,7 +100,6 @@ function render() {
 
       <div class="meta">
         <span>${new Date(item.createdAt).toLocaleDateString()}</span>
-        ${item.url ? `<a class="source" href="${escapeAttr(item.url)}" target="_blank" rel="noreferrer" title="${escapeAttr(item.url)}">${escapeHtml(sourceTitle(item))}</a>` : ''}
       </div>
     </div>
   `).join('');
