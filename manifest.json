@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Save unfamiliar words from any page via the context menu; meaning, part of speech, and example sentence are auto-filled.",
   "permissions": ["alarms", "contextMenus", "storage", "tabs"],
-  "host_permissions": ["https://translate.googleapis.com/*", "https://text.pollinations.ai/*"],
+  "host_permissions": ["https://translate.googleapis.com/*", "https://text.pollinations.ai/*", "https://dict.youdao.com/*"],
   "background": {
     "service_worker": "background.js"
   },

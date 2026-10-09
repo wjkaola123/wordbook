@@ -13,6 +13,7 @@
   --red: #b3261e;
   --red-tint: #fdf1f0;
   --accent: #2f5db3;
+  --accent-tint: #eef2f9;
   --serif: Georgia, "Iowan Old Style", "Times New Roman", "Songti SC", SimSun, serif;
   --sans: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
 }
@@ -166,6 +167,43 @@ header button svg {
 .delete:hover {
   color: var(--red);
   background: var(--red-tint);
+}
+
+/* Pronunciation buttons — same muted-until-hover contract as delete,
+   but hover in the accent blue and grouped tightly before it */
+.speak-group {
+  display: flex;
+  gap: 2px;
+  align-self: flex-start;
+}
+
+.speak {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0.55;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: 500 10.5px/1 var(--sans); /* same token as .freq */
+}
+
+.speak svg {
+  display: block;
+}
+
+.item:hover .speak,
+.speak:hover,
+.speak:focus-visible {
+  opacity: 1;
+}
+
+.speak:hover {
+  color: var(--accent);
+  background: var(--accent-tint);
 }
 
 /* Meaning and example read as entry text until hovered or focused */
