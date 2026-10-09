@@ -6,11 +6,13 @@
   <title>Wordbook</title>
   <link rel="stylesheet" href="styles.css" />
   <style>
-    /* Full-tab layout: the same list the popup shows, widened to a
-       book-page column and scrolled by the page instead of a box. */
+    /* Full-tab layout: the same entries the popup shows, arranged in a
+       card grid across the page instead of one scrollable column. Card
+       chrome lives here — the shared sheet styles entries as a continuous
+       dictionary page with divider lines, which a grid can't use. */
     body {
       width: auto;
-      max-width: 780px;
+      max-width: 1400px;
       margin: 0 auto;
       padding: 0 28px 56px;
     }
@@ -24,6 +26,34 @@
       max-height: none;
       overflow: visible;
       padding: 2px 4px 14px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 10px;
+      /* items stretch to the row's tallest card, so every row reads as
+         an even band of cards */
+    }
+
+    /* The shared .item + .item divider paints the same border-top this
+       draws on every side, so it needs no separate override */
+    .item {
+      border: 1px solid var(--hairline);
+      border-radius: 10px;
+      padding: 13px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Pin the date to the card foot so a short card's stretch space sits
+       between example and date, not as a hole below the card edge */
+    .item .meta {
+      margin-top: auto;
+      padding-top: 7px; /* keep the shared margin gap when there's no slack */
+    }
+
+    /* Full-width banners, not one grid cell wide */
+    .sync-error,
+    .empty {
+      grid-column: 1 / -1;
     }
   </style>
 </head>
