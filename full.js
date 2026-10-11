@@ -2,7 +2,7 @@
 // Classic scripts share the global lexical environment, so this file reads
 // (and for the storage mirror below, assigns) popup.js's top-level bindings:
 // allWords, pendingLookups, syncError, listEl, searchEl, isPending, posAbbr,
-// speakWord, loadWords, isEditing. The flashcard view is read-only — the
+// speakWord, speakSentence, englishExample, loadWords, isEditing. The flashcard view is read-only — the
 // grid remains the editing surface — and never writes `words` itself.
 
 const readerEl = document.getElementById('reader');
@@ -27,8 +27,10 @@ function ensureCard() {
     <div class="flashcard" role="button" tabindex="0" aria-pressed="false" aria-label="Flip card">
       <div class="flash-inner">
         <div class="flash-face flash-front">
-          <div class="flash-word"></div>
-          <div class="flash-pos pos-tag" hidden></div>
+          <div class="flash-word-row">
+            <span class="flash-word"></span>
+            <span class="phonetic flash-phonetic" hidden></span>
+          </div>
           <span class="speak-group">
             <button class="speak" data-action="speak" data-accent="uk" aria-label="Pronounce (British)" title="Pronounce (British)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.25 4.75v6.5l-2.75-2H3.5v-2.5h2l2.75-2Z"/><path d="M10.75 6.25a2.5 2.5 0 0 1 0 3.5"/></svg>UK</button>
             <button class="speak" data-action="speak" data-accent="us" aria-label="Pronounce (American)" title="Pronounce (American)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.25 4.75v6.5l-2.75-2H3.5v-2.5h2l2.75-2Z"/><path d="M10.75 6.25a2.5 2.5 0 0 1 0 3.5"/></svg>US</button>
@@ -36,8 +38,14 @@ function ensureCard() {
         </div>
         <div class="flash-face flash-back">
           <div class="loading" hidden>Looking up meaning and example…</div>
-          <div class="flash-meaning"></div>
-          <div class="flash-example"></div>
+          <div class="flash-meaning-row">
+            <span class="flash-pos pos-tag" hidden></span>
+            <span class="flash-meaning"></span>
+          </div>
+          <div class="flash-example-row">
+            <div class="flash-example"></div>
+            <button class="speak" data-action="speak-example" aria-label="Read example aloud" title="Read example aloud" hidden><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.25 4.75v6.5l-2.75-2H3.5v-2.5h2l2.75-2Z"/><path d="M12.25 4.75a4.5 4.5 0 0 1 0 6.5"/></svg></button>
+          </div>
           <div class="meta"></div>
         </div>
       </div>
@@ -47,9 +55,11 @@ function ensureCard() {
     root: slotEl.querySelector('.flashcard'),
     word: slotEl.querySelector('.flash-word'),
     pos: slotEl.querySelector('.flash-pos'),
+    phonetic: slotEl.querySelector('.flash-phonetic'),
     loading: slotEl.querySelector('.loading'),
     meaning: slotEl.querySelector('.flash-meaning'),
     example: slotEl.querySelector('.flash-example'),
+    exampleSpeak: slotEl.querySelector('.flash-example-row .speak'),
     meta: slotEl.querySelector('.meta')
   };
   return card;
@@ -68,9 +78,17 @@ function updateCard() {
     card.pos.hidden = true;
   }
 
+  if (item.phonetic) {
+    card.phonetic.hidden = false;
+    card.phonetic.textContent = `/${item.phonetic}/`;
+  } else {
+    card.phonetic.hidden = true;
+  }
+
   card.loading.hidden = !isPending(item.id);
   card.meaning.textContent = item.meaning || '';
   card.example.textContent = item.example || '';
+  card.exampleSpeak.hidden = !englishExample(item.example);
   card.meta.textContent = new Date(item.createdAt).toLocaleDateString();
 
   progressEl.textContent = `${cardIndex + 1} / ${deck.length}`;
@@ -186,6 +204,9 @@ readerEl.addEventListener('click', (e) => {
   if (actionEl.dataset.action === 'speak') {
     const item = deck[cardIndex];
     if (item) speakWord(item.word, actionEl.dataset.accent);
+  } else if (actionEl.dataset.action === 'speak-example') {
+    const item = deck[cardIndex];
+    if (item) speakSentence(englishExample(item.example));
   } else if (actionEl.dataset.nav) {
     navigate(actionEl.dataset.nav === 'next' ? 1 : -1);
   } else {

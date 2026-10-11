@@ -47,7 +47,13 @@
        between example and date, not as a hole below the card edge */
     .item .meta {
       margin-top: auto;
-      padding-top: 7px; /* keep the shared margin gap when there's no slack */
+      padding-top: 2px; /* keep the shared list margin gap when there's no slack */
+    }
+
+    /* The flashcard keeps its own tight word→phonetic spacing (face gap 4px);
+       the list's rhythm widening above is for the entry cards only */
+    .flash-word-row .phonetic {
+      margin-top: 0;
     }
 
     /* Full-width banners, not one grid cell wide */
@@ -61,10 +67,14 @@
        hidden); this section just replaces it visually. */
 
     /* The display rules on this page beat the UA's [hidden] default, so
-       hiding needs its own override to take effect */
+       hiding needs its own override to take effect. .flash-phonetic rides
+       on the shared .phonetic's display:block; .flash-pos is a flex
+       item like the others here. */
     #list[hidden],
     #reader[hidden],
-    .flash-nav[hidden] {
+    .flash-nav[hidden],
+    .flash-phonetic[hidden],
+    .flash-pos[hidden] {
       display: none;
     }
 
@@ -81,11 +91,8 @@
       perspective: 1200px;
       cursor: pointer;
       min-height: 260px;
-    }
-
-    .flashcard:focus-visible {
-      outline: 2px solid var(--accent);
-      outline-offset: 6px;
+      /* No focus ring: the flip itself is the keyboard feedback */
+      outline: none;
     }
 
     /* Grid-stacked faces: the card grows to the taller face, and both
@@ -129,24 +136,61 @@
       transform: rotateY(180deg);
     }
 
+    /* The phonetic sits under the word, matching the grid cards */
+    .flash-word-row {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
     .flash-word {
       font: 700 34px/1.25 var(--serif);
       word-break: break-word;
     }
 
     .flash-pos {
+      flex: none;
       font-size: 14px;
+    }
+
+    /* The shared .phonetic at card scale */
+    .flash-phonetic {
+      font-size: 15px;
+    }
+
+    /* POS leads the meaning on the back, mirroring the grid card */
+    .flash-meaning-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
     }
 
     .flash-meaning {
       font: 400 18px/1.5 var(--serif);
     }
 
-    /* pre-line: AI examples are a sentence + translation pair joined by \n */
+    /* pre-line: AI examples are a sentence + translation pair joined by \n;
+       flex:1 inside the row keeps the speak button at the right edge */
     .flash-example {
+      flex: 1;
       font: italic 14px/1.6 var(--serif);
       color: var(--soft-ink);
       white-space: pre-line;
+    }
+
+    /* The example's read-aloud button rides the text's top-right edge,
+       mirroring the grid card's example row. The [hidden] override is
+       load-bearing like the one above — .speak's own display rule beats
+       the UA's [hidden] default */
+    .flash-example-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+    }
+
+    .flash-example-row .speak[hidden] {
+      display: none;
     }
 
     /* The shared hover reveal for .speak is scoped to .item; re-scope it

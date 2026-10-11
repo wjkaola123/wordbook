@@ -106,9 +106,11 @@ header button svg {
   border-radius: 4px;
 }
 
-/* Entries read as a continuous dictionary page, not stacked cards */
+/* Entries read as a continuous dictionary page, not stacked cards.
+   Boundary air (16/15 + the hairline ≈ 32px) stays well clear of the
+   6–7px intra-entry rhythm so the divider reads as an entry break. */
 .item {
-  padding: 13px 4px 12px;
+  padding: 16px 4px 15px;
 }
 
 .item + .item {
@@ -135,6 +137,31 @@ header button svg {
 .pos-tag {
   font: italic 400 12.5px var(--serif);
   color: var(--muted);
+}
+
+/* IPA set the dictionary way too: small, muted, between slashes, on its
+   own line under the word. nowrap keeps the transcription atomic — a
+   mid-transcription split ("ˌʌnfə / ˈmiliə(r)") reads as garbage — and the
+   ellipsis is a belt-and-braces escape hatch for a transcription wider
+   than the card itself. */
+.phonetic {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 1px;
+  font: 400 12px var(--serif);
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+/* In the list views every entry block sits ~12px from the next (the
+   flashcard's word-row spacing is its own, kept tight via its face gap).
+   Measured glyph-to-glyph: word→phonetic was 7px against 16-23px below —
+   this lifts it onto the shared rhythm. */
+.item > .phonetic {
+  margin-top: 6px;
 }
 
 /* Occurrences shown as a superscript frequency mark, like dictionary bands */
@@ -206,12 +233,118 @@ header button svg {
   background: var(--accent-tint);
 }
 
+/* Field-row icon buttons — same muted-until-hover contract as the buttons
+   above: the edit gate (pencil unlocks the field, the floppy that replaces
+   it saves and locks) and the example's read-aloud speaker */
+.field-edit,
+.field-speak {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0.55;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  line-height: 0;
+  margin-top: 4px;
+  transition: color 120ms ease, background-color 120ms ease, opacity 120ms ease;
+}
+
+.field-edit svg,
+.field-speak svg {
+  display: block;
+}
+
+/* The pencil leans into the cursor as it reaches for it — the pencil only,
+   so the floppy state and the speak button stay still */
+@media (prefers-reduced-motion: no-preference) {
+  .field-edit svg {
+    transition: transform 120ms ease;
+  }
+
+  .field-row:not(.editing) .field-edit:hover svg {
+    transform: rotate(-8deg);
+  }
+}
+
+.item:hover .field-edit,
+.item:hover .field-speak,
+.field-edit:hover,
+.field-speak:hover,
+.field-edit:focus-visible,
+.field-speak:focus-visible {
+  opacity: 1;
+}
+
+.field-edit:hover,
+.field-speak:hover {
+  color: var(--accent);
+  background: var(--accent-tint);
+}
+
+/* An unlocked field keeps the focused look even when focus has moved on,
+   and its gate button reads as the active affordance */
+.field-row.editing input,
+.field-row.editing textarea {
+  background: var(--paper);
+  border-color: #d3cdc2;
+  box-shadow: 0 1px 4px rgba(35, 32, 28, 0.07);
+}
+
+/* While editing, the save button sits on the accent tint so it reads as
+   the row's primary action, not another muted icon */
+.field-row.editing .field-edit {
+  opacity: 1;
+  color: var(--accent);
+  background: var(--accent-tint);
+}
+
+/* Each editable field sits in a row with its edit-gate button. The margin
+   is small on purpose: the field inputs carry 6px of border+padding chrome
+   above their text, which silently adds to the visual gap (see the
+   textarea's margin pull below). */
+.field-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+/* POS leads the meaning line at natural width, dictionary style — the whole
+   entry shares one flush-left rail (word, phonetic, meaning, example, date),
+   and the label simply starts the line like "n. 修订". Padded down and given
+   the meaning input's line box (14px × the body's 1.55 factor) so the small
+   italic text sits on the input's first line — keep in sync with
+   input[data-field="meaning"] below. */
+.field-row .pos-tag {
+  flex: none;
+  /* Right padding offsets the field inputs' -4px margin pull, keeping ~10px
+     of air between the label's last glyph and the meaning text */
+  padding: 6px 4px 0 0;
+  line-height: calc(14px * 1.55);
+  white-space: nowrap;
+}
+
+/* CJK words carry no phonetic, so the meaning row follows the 16.5px word
+   line directly — the word row's own leading makes the gap read ~17px
+   against the ~12px rhythm. Pull that one row in; the loading line (also
+   phonetic-less in flight) keeps the default. */
+.item:not(:has(> .phonetic, > .loading)) > .field-row:not(:has(textarea)) {
+  margin-top: -3px;
+}
+
 /* Meaning and example read as entry text until hovered or focused */
 .item input,
 .item textarea {
-  width: 100%;
-  margin-top: 6px;
-  padding: 5px 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px 5px 3px;
+  /* Inputs are boxes; their text sits inset by border + padding. Pull the
+     box left by exactly that (1px + 3px) so the field's TEXT lands on the
+     card's flush-left rail, matching the word/phonetic/date above it. The
+     4px overhang stays inside .item's padding in both views. */
+  margin-left: -4px;
   border: 1px solid transparent;
   border-radius: 7px;
   background: transparent;
@@ -225,11 +358,19 @@ header button svg {
   border-color: var(--hairline);
 }
 
-.item input:focus,
-.item textarea:focus {
+/* A locked field is focusable (select/copy) but must not pretend to be
+   editable, so the editing look only applies once unlocked. Locked fields
+   get no focus styling at all — the UA's near-black focus ring goes, and
+   the field reads as plain entry text while its text is being selected. */
+.item input:focus-visible,
+.item textarea:focus-visible {
   outline: none;
+}
+
+.item input:not([readonly]):focus,
+.item textarea:not([readonly]):focus {
   background: var(--paper);
-  border-color: #b7b1a6;
+  border-color: #d3cdc2;
   box-shadow: 0 1px 4px rgba(35, 32, 28, 0.07);
 }
 
@@ -241,6 +382,11 @@ header button svg {
      back to the rows attribute. */
   field-sizing: content;
   min-height: calc(3.1em + 10px);
+  /* Same trick as the inputs' -4px horizontal pull, but vertical: the
+     example sits ~12px under the meaning's TEXT, not under the meaning
+     input's border+padding chrome — without the pull the gap reads ~19px
+     against the entry's uniform ~12px rhythm. */
+  margin-top: -7px;
 }
 
 /* The native resize grip is noisy at popup scale; dragging still works */
@@ -254,6 +400,7 @@ header button svg {
 }
 
 .item textarea[data-field="example"] {
+  /* Flush with the meaning line — the card's single left rail */
   font-style: italic;
   font-size: 12.5px;
   color: var(--soft-ink);
@@ -280,11 +427,16 @@ header button svg {
   50% { opacity: 0.45; }
 }
 
-/* Citation line: date the word was saved */
+/* Citation line: date the word was saved. The flashcard reuses .meta as a
+   plain flex child of its face (which already gaps at 10px), so the list
+   offset is scoped to .item — same story as .phonetic above. */
 .meta {
-  margin-top: 7px;
   font-size: 11.5px;
   color: var(--muted);
+}
+
+.item > .meta {
+  margin-top: 2px;
 }
 
 .sync-error {

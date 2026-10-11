@@ -23,7 +23,7 @@ const POS_LABELS = {
 };
 
 function posLabel(pos) {
-  return POS_LABELS[pos] || POS_LABELS[pos.toLowerCase()] || pos;
+  return POS_LABELS[pos] || POS_LABELS[(pos || '').toLowerCase()] || pos || '';
 }
 
 // Abbreviate the English label the way dictionaries set it (display only)
@@ -57,10 +57,14 @@ const AUDIO_CACHE_MAX = 100;
 const audioCache = new Map();
 let currentAudio = null;
 
-function speakWord(word, accent) {
-  if (!word) return;
+function speakWord(text, accent) {
+  if (!text) return;
   const type = accent === 'us' ? 2 : 1;
-  const key = `${type}:${word}`;
+  const key = `${type}:${text}`;
+
+  // Pre-empt a playing sentence too — the two engines don't know about
+  // each other
+  speechSynthesis?.cancel();
 
   // Pre-empt whatever is playing (pausing a still-loading element makes
   // its pending play() reject with AbortError — harmless, see below)
@@ -71,7 +75,7 @@ function speakWord(word, accent) {
 
   let audio = audioCache.get(key);
   if (!audio) {
-    audio = new Audio(`https://dict.youdao.com/dictvoice?type=${type}&audio=${encodeURIComponent(word)}`);
+    audio = new Audio(`https://dict.youdao.com/dictvoice?type=${type}&audio=${encodeURIComponent(text)}`);
     audioCache.set(key, audio);
     while (audioCache.size > AUDIO_CACHE_MAX) {
       audioCache.delete(audioCache.keys().next().value); // oldest insertion
@@ -87,6 +91,61 @@ function speakWord(word, accent) {
     if (audio.error && audioCache.get(key) === audio) audioCache.delete(key);
   });
 }
+
+// Example sentences are beyond dictvoice — it 500s with "returned null
+// audio" on multi-word text — so read-aloud goes through the browser's
+// built-in speech synthesis instead. Playback belongs to this page like
+// the Audio elements above: closing the popup/full tab stops it.
+// The voice list loads asynchronously and differs per machine, so resolve
+// per call: Windows' "Natural" neural voices sound closest to a real
+// speaker (British preferred, matching the UK word buttons), then
+// Chrome's online Google voice, then any English voice.
+function speakSentence(text) {
+  if (!text || !('speechSynthesis' in window)) return;
+
+  // Pre-empt a playing dictvoice clip and any earlier utterance (cancel
+  // is idempotent, so double-clicks simply restart)
+  currentAudio?.pause();
+  if (currentAudio) currentAudio.currentTime = 0;
+  currentAudio = null;
+  speechSynthesis.cancel();
+
+  const voices = speechSynthesis.getVoices();
+  const voice =
+    voices.find(v => /natural/i.test(v.name) && /^en-GB/i.test(v.lang)) ||
+    voices.find(v => /natural/i.test(v.name) && /^en/i.test(v.lang)) ||
+    voices.find(v => /^Google US English$/i.test(v.name)) ||
+    voices.find(v => /^en/i.test(v.lang));
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  if (voice) utterance.voice = voice;
+  utterance.lang = voice?.lang || 'en-US';
+  speechSynthesis.speak(utterance);
+}
+
+// The speakable part of an example: AI examples pair a sentence with its
+// translation on two lines (English first for Latin words, reversed for CJK
+// words), corpus examples are a single line. The first Latin-script line is
+// what gets read; a Chinese-only example returns '' (no button).
+// Same CJK range as isCjk in background.js.
+function englishExample(example) {
+  for (const line of (example || '').split('\n')) {
+    const s = line.trim();
+    if (s && !/[㐀-鿿]/.test(s) && /[A-Za-z]/.test(s)) return s;
+  }
+  return '';
+}
+
+// Edit-gate icons: the pencil unlocks a field, the floppy that replaces
+// it in the same spot saves and locks it again. The pencil's underline
+// marks it as "edit this text" — the right verb for a field-level gate.
+// Stroke 1.5 — a hair lighter than the speak icons, so the pencil's two
+// paths don't read heavier than their single-path neighbours at this size.
+const ICON_EDIT = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 2.33a1.41 1.41 0 0 1 2 2L4.67 12.67l-2.67.67.67-2.67Z"/><path d="M8 13.33h5.33"/></svg>';
+const ICON_SAVE = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.25 13.25H2.75V2.75h7.75l2.75 2.75v7.75Z"/><path d="M5.25 13.25v-3.5h5.5v3.5M5.25 2.75v3.25h4.5"/></svg>';
+// Example read-aloud — the word buttons' speaker glyph with the fuller arc
+// (a sentence, not a single word)
+const ICON_SPEAK = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.25 4.75v6.5l-2.75-2H3.5v-2.5h2l2.75-2Z"/><path d="M12.25 4.75a4.5 4.5 0 0 1 0 6.5"/></svg>';
 
 async function loadWords() {
   const { words = [], pendingLookups: pending = [], syncError: err = '' } =
@@ -126,7 +185,7 @@ function render() {
   listEl.innerHTML = notice + filtered.map(item => `
     <div class="item" data-id="${escapeAttr(item.id)}">
       <div class="row">
-        <div class="word">${escapeHtml(item.word)}${item.pos ? ` <span class="pos-tag">${escapeHtml(posAbbr(item.pos))}</span>` : ''}${(item.occurrences || 1) > 1 ? `<span class="freq" title="Seen ${item.occurrences} times">${item.occurrences}</span>` : ''}</div>
+        <div class="word">${escapeHtml(item.word)}${(item.occurrences || 1) > 1 ? `<span class="freq" title="Seen ${item.occurrences} times">${item.occurrences}</span>` : ''}</div>
         <span class="speak-group">
           <button class="speak" data-action="speak" data-accent="uk" aria-label="Pronounce ${escapeAttr(item.word)} (British)" title="Pronounce (British)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.25 4.75v6.5l-2.75-2H3.5v-2.5h2l2.75-2Z"/><path d="M10.75 6.25a2.5 2.5 0 0 1 0 3.5"/></svg>UK</button>
           <button class="speak" data-action="speak" data-accent="us" aria-label="Pronounce ${escapeAttr(item.word)} (American)" title="Pronounce (American)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.25 4.75v6.5l-2.75-2H3.5v-2.5h2l2.75-2Z"/><path d="M10.75 6.25a2.5 2.5 0 0 1 0 3.5"/></svg>US</button>
@@ -134,11 +193,21 @@ function render() {
         <button class="delete" data-action="delete" aria-label="Delete word">✕</button>
       </div>
 
+      ${item.phonetic ? `<div class="phonetic">/${escapeHtml(item.phonetic)}/</div>` : ''}
+
       ${isPending(item.id) ? '<div class="loading">Looking up meaning and example…</div>' : ''}
 
-      <input data-field="meaning" aria-label="Meaning" value="${escapeAttr(item.meaning || '')}" placeholder="Meaning (Chinese or English)" />
+      <div class="field-row">
+        ${posAbbr(item.pos) ? `<span class="pos-tag">${escapeHtml(posAbbr(item.pos))}</span>` : ''}
+        <input data-field="meaning" aria-label="Meaning" readonly value="${escapeAttr(item.meaning || '')}" placeholder="Meaning (Chinese or English)" />
+        <button class="field-edit" data-action="edit" data-field="meaning" aria-label="Edit meaning" title="Edit meaning">${ICON_EDIT}</button>
+      </div>
 
-      <textarea data-field="example" aria-label="Example" rows="2" placeholder="Usage example; filled in automatically">${escapeHtml(item.example || '')}</textarea>
+      <div class="field-row">
+        <textarea data-field="example" aria-label="Example" rows="2" readonly placeholder="Usage example; filled in automatically">${escapeHtml(item.example || '')}</textarea>
+        ${englishExample(item.example) ? `<button class="field-speak" data-action="speak-example" aria-label="Read example aloud" title="Read example aloud">${ICON_SPEAK}</button>` : ''}
+        <button class="field-edit" data-action="edit" data-field="example" aria-label="Edit example" title="Edit example">${ICON_EDIT}</button>
+      </div>
 
       <div class="meta">
         <span>${new Date(item.createdAt).toLocaleDateString()}</span>
@@ -173,7 +242,8 @@ let refreshOnBlur = false;
 
 function isEditing() {
   const el = document.activeElement;
-  return !!(el && el.dataset && el.dataset.field && listEl.contains(el));
+  // A locked field is still focusable (select/copy) but not being edited
+  return !!(el && el.dataset && el.dataset.field && !el.readOnly && listEl.contains(el));
 }
 
 chrome.storage.onChanged.addListener((changes, area) => {
@@ -229,8 +299,48 @@ listEl.addEventListener('click', (e) => {
   } else if (actionEl.dataset.action === 'speak') {
     const item = allWords.find(w => w.id === itemEl.dataset.id);
     if (item) speakWord(item.word, actionEl.dataset.accent);
+  } else if (actionEl.dataset.action === 'speak-example') {
+    const item = allWords.find(w => w.id === itemEl.dataset.id);
+    if (item) speakSentence(englishExample(item.example));
+  } else if (actionEl.dataset.action === 'edit') {
+    toggleFieldEdit(itemEl, actionEl);
   }
 });
+
+// The pencil unlocks one field for editing (typing then live-saves through
+// handleEdit, as before); the floppy that replaces it in the same spot
+// saves and locks the field again.
+function toggleFieldEdit(itemEl, btn) {
+  const input = itemEl.querySelector(`[data-field="${btn.dataset.field}"]`);
+  if (!input) return;
+
+  const unlock = input.readOnly;
+  input.readOnly = !unlock;
+  btn.innerHTML = unlock ? ICON_SAVE : ICON_EDIT;
+  popGlyph(btn);
+
+  const label = `${unlock ? 'Save' : 'Edit'} ${btn.dataset.field}`;
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+  input.closest('.field-row').classList.toggle('editing', unlock);
+
+  if (unlock) {
+    input.focus();
+    // Caret to the end so typing appends to the saved text
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+  }
+}
+
+// Pop the swapped glyph in briefly so the pencil→floppy flip registers
+// as a deliberate state change rather than a flicker.
+function popGlyph(btn) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  btn.firstElementChild.animate(
+    [{ transform: 'scale(0.6)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }],
+    { duration: 140, easing: 'ease-out' }
+  );
+}
 
 searchEl.addEventListener('input', render);
 

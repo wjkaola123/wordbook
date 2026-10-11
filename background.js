@@ -85,6 +85,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   if (saved && (!saved.meaning || !saved.pos || !saved.example)) {
     await fillTranslation(saved.id, word);
+  } else if (saved && !saved.phonetic) {
+    // A complete word that only lacks the phonetic gets the cheap
+    // phonetic-only call; the full lookup would refetch everything.
+    await fillPhonetic(saved.id, word);
   }
   ensureBackfillAlarm();
 });
@@ -111,10 +115,15 @@ async function ensureBackfillAlarm() {
 }
 
 function needsBackfill(item, now, pending, fails = {}) {
-  if (!item.createdAt || now - item.createdAt > BACKFILL_WINDOW_MS) return false;
   if (pending.some(p => p.id === item.id)) return false;
   if ((fails[item.id] || 0) >= BACKFILL_MAX_ATTEMPTS) return false;
-  return !item.meaning || !item.pos || !item.example || isDegenerateExample(item);
+  // A missing phonetic alone has no 24h deadline — words saved before the
+  // field existed still get their one cheap dictionary call each (a couple
+  // per minute), and the alarm clears once nothing more can be tried.
+  if (!item.createdAt || now - item.createdAt > BACKFILL_WINDOW_MS) {
+    return !item.phonetic;
+  }
+  return !item.meaning || !item.pos || !item.example || isDegenerateExample(item) || !item.phonetic;
 }
 
 // One run at a time: alarm events fire on schedule even while a previous run
@@ -141,7 +150,13 @@ async function backfillMissing() {
       .slice(0, BACKFILL_MAX_PER_RUN);
 
     for (const item of targets) {
-      const ok = await fillTranslation(item.id, item.word, { silent: true });
+      // A word whose meaning/pos/example still need work takes the full
+      // lookup (which fills the phonetic on the way); one that is otherwise
+      // complete only gets the cheap phonetic-only call.
+      const needsLookup = !item.meaning || !item.pos || !item.example || isDegenerateExample(item);
+      const ok = needsLookup
+        ? await fillTranslation(item.id, item.word, { silent: true })
+        : await fillPhonetic(item.id, item.word);
       if (ok) delete fails[item.id];
       else fails[item.id] = (fails[item.id] || 0) + 1;
     }
@@ -193,7 +208,7 @@ async function fillTranslation(id, text, { silent = false } = {}) {
 
     let changed = false;
 
-    for (const field of ['meaning', 'pos', 'example']) {
+    for (const field of ['meaning', 'pos', 'example', 'phonetic']) {
       if (!item[field] && result[field]) {
         item[field] = result[field];
         changed = true;
@@ -213,6 +228,24 @@ async function fillTranslation(id, text, { silent = false } = {}) {
   });
 
   return complete;
+}
+
+// Phonetic-only companion to fillTranslation for words that are otherwise
+// complete (legacy entries, re-saves of filled words): one cheap dictionary
+// call — no pending indicator, no AI queue. Returns false only when the
+// word still lacks a phonetic afterwards, which counts as a failed backfill
+// attempt like any other.
+async function fillPhonetic(id, word) {
+  const phonetic = await fetchPhonetic(word).catch(() => '');
+
+  await enqueueWordsWrite(words => {
+    const item = words.find(w => w.id === id);
+    if (!item || item.phonetic || !phonetic) return false;
+    item.phonetic = phonetic;
+    item.updatedAt = Date.now();
+  });
+
+  return Boolean(phonetic);
 }
 
 // A one-token "sentence" is the cleaned corpus fragment Google's dictionary
@@ -291,7 +324,29 @@ function freshPendingCount(pendingLookups) {
   return pendingLookups.filter(p => now - p.startedAt < PENDING_TTL_MS).length;
 }
 
+// Phonetic transcription: Youdao's dictionary JSON endpoint (same host as
+// the dictvoice audio, no key). UK IPA is preferred; inflected forms often
+// ship only the American one. The response shape is undocumented — read
+// defensively and give up quietly (CJK words carry no phones at all).
+async function fetchPhonetic(text) {
+  const dicts = encodeURIComponent('{"count":1,"dicts":[["ec"]]}');
+  const url = `https://dict.youdao.com/jsonapi?jsonversion=2&client=mobile&dicts=${dicts}&q=${encodeURIComponent(text)}`;
+
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) return '';
+
+  const data = await res.json();
+  const entry = data?.simple?.word?.[0] || data?.ec?.word?.[0];
+  const phonetic = String(entry?.ukphone || entry?.usphone || '').trim();
+  return phonetic && phonetic.length <= 64 ? phonetic : '';
+}
+
 async function lookup(text) {
+  // The phonetic comes from a second endpoint; run it alongside the Google
+  // call instead of after it — the AI gap below can idle ~30s, and the
+  // dictionary answer shouldn't wait behind that.
+  const phoneticPromise = fetchPhonetic(text).catch(() => '');
+
   const target = /[㐀-鿿]/.test(text) ? 'en' : 'zh-CN';
   const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&dt=bd&q=${encodeURIComponent(text)}`;
 
@@ -322,7 +377,8 @@ async function lookup(text) {
   return {
     meaning: (data[0] || []).map(seg => (seg && seg[0]) || '').join('').trim(),
     pos,
-    example
+    example,
+    phonetic: await phoneticPromise
   };
 }
 
@@ -445,7 +501,7 @@ function cleanExample(sentence) {
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local') {
-    if (changes.words || changes.pendingLookups) updateBadge();
+    if (changes.pendingLookups) updateBadge();
     if (changes.words) scheduleSyncPush();
   } else if (area === 'sync' && Object.keys(changes).some(k => /^words_\d+$/.test(k))) {
     reconcileSync();
@@ -453,15 +509,15 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 async function updateBadge() {
-  const { words = [], pendingLookups = [] } = await chrome.storage.local.get(['words', 'pendingLookups']);
+  const { pendingLookups = [] } = await chrome.storage.local.get(['pendingLookups']);
   const pending = freshPendingCount(pendingLookups);
 
   await chrome.action.setBadgeText({
-    text: pending ? '…' : (words.length ? String(words.length) : '')
+    text: pending ? '…' : ''
   });
 
   await chrome.action.setBadgeBackgroundColor({
-    color: pending ? '#f59e0b' : '#4f46e5'
+    color: '#f59e0b'
   });
 }
 
@@ -525,9 +581,9 @@ async function mirrorToSync(words) {
 // and must reach identical results, or they'd overwrite each other forever.
 // Pair entries case-insensitively by word; entries only one side has are kept
 // as-is. When both sides have a word, the entry with the newer `updatedAt`
-// wins (ties broken by id, remote preferred), empty `meaning`/`pos`/`example`
-// are backfilled from the losing side, and `occurrences` takes the max, never
-// the sum — merging the same state twice must not double the count.
+// wins (ties broken by id, remote preferred), empty `meaning`/`pos`/`example`/
+// `phonetic` are backfilled from the losing side, and `occurrences` takes the
+// max, never the sum — merging the same state twice must not double the count.
 function mergeWords(local, remote) {
   const map = new Map();
 
@@ -553,7 +609,7 @@ function mergeEntry(a, b) {
   const other = newer === a ? b : a;
   const out = { ...newer };
 
-  for (const field of ['meaning', 'pos', 'example']) {
+  for (const field of ['meaning', 'pos', 'example', 'phonetic']) {
     if (!out[field] && other[field]) out[field] = other[field];
   }
 
