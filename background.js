@@ -424,7 +424,9 @@ async function generateExample(word, pos) {
   return parseGeneratedExample(await res.text());
 }
 
-const POS_PATTERN = /(noun|verb|adjective|adverb|preposition|conjunction|pronoun|interjection|numeral|abbreviation)/;
+// Word boundaries are load-bearing: without them "adverb" matches the
+// "verb" alternative starting at its second character.
+const POS_PATTERN = /\b(noun|verb|adjective|adverb|preposition|conjunction|pronoun|interjection|numeral|abbreviation)\b/;
 
 function parseGeneratedExample(text) {
   const lines = text.trim().split('\n')
