@@ -314,7 +314,7 @@ header button svg {
 /* POS leads the meaning line at natural width, dictionary style — the whole
    entry shares one flush-left rail (word, phonetic, meaning, example, date),
    and the label simply starts the line like "n. 修订". Padded down and given
-   the meaning input's line box (14px × the body's 1.55 factor) so the small
+   the meaning input's line box (12.5px × the body's 1.55 factor) so the small
    italic text sits on the input's first line — keep in sync with
    input[data-field="meaning"] below. */
 .field-row .pos-tag {
@@ -322,7 +322,7 @@ header button svg {
   /* Right padding offsets the field inputs' -4px margin pull, keeping ~10px
      of air between the label's last glyph and the meaning text */
   padding: 6px 4px 0 0;
-  line-height: calc(14px * 1.55);
+  line-height: calc(12.5px * 1.55);
   white-space: nowrap;
 }
 
@@ -396,7 +396,7 @@ header button svg {
 
 .item input[data-field="meaning"] {
   font-family: var(--serif);
-  font-size: 14px;
+  font-size: 12.5px;
 }
 
 .item textarea[data-field="example"] {
