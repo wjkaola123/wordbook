@@ -99,9 +99,13 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 // can drop, and the MV3 service worker can be killed mid-lookup. A periodic
 // alarm silently retries words saved in the last 24h whose meaning/pos/
 // example never arrived (or arrived as a single-token fragment), a couple per
-// minute, up to BACKFILL_MAX_ATTEMPTS tries per word — then removes itself so
-// a dead endpoint can't keep it (and the badge/pending churn) alive forever.
-// An explicit re-save of the word resets its count.
+// minute, up to BACKFILL_MAX_ATTEMPTS tries per word. An attempt is only
+// spent when an endpoint answered but left the entry incomplete — an
+// unreachable endpoint (network down, or Google's sorry-page rate-limit on
+// both hosts) keeps every word's attempts intact and is simply retried the
+// next minute, so a temporary block can't strand words forever. Once nothing
+// more can be tried the alarm removes itself. An explicit re-save of the word
+// resets its count.
 const BACKFILL_ALARM = 'wordbook-backfill';
 const BACKFILL_MAX_PER_RUN = 2;
 const BACKFILL_MAX_ATTEMPTS = 5;
@@ -157,6 +161,7 @@ async function backfillMissing() {
       const ok = needsLookup
         ? await fillTranslation(item.id, item.word, { silent: true })
         : await fillPhonetic(item.id, item.word);
+      if (ok === null) continue; // unreachable — keep the word's attempts intact
       if (ok) delete fails[item.id];
       else fails[item.id] = (fails[item.id] || 0) + 1;
     }
@@ -180,8 +185,12 @@ chrome.alarms.onAlarm.addListener(alarm => {
 
 // silent: alarm-triggered backfill — no "Looking up…" indicator (the word
 // keeps showing what it has until better data lands), and outcomes are
-// counted in `backfillFails`. Explicit saves stay visible and reset the
-// failure count, granting fresh backfill attempts.
+// counted in `backfillFails`. Returns true (complete), false (an endpoint
+// answered but the entry is still incomplete — counts as a failed attempt),
+// or null (no endpoint reachable — must NOT count, or a temporary network
+// outage or sorry-page block would strand every word by exhausting its
+// attempts). Explicit saves stay visible and reset the failure count,
+// granting fresh backfill attempts.
 async function fillTranslation(id, text, { silent = false } = {}) {
   if (!silent) {
     await setPending(id, true);
@@ -195,7 +204,7 @@ async function fillTranslation(id, text, { silent = false } = {}) {
   const result = await lookup(text).catch(() => null);
   if (!silent) await setPending(id, false);
 
-  if (!result) return false;
+  if (!result) return null;
 
   let complete = false;
 
@@ -232,11 +241,12 @@ async function fillTranslation(id, text, { silent = false } = {}) {
 
 // Phonetic-only companion to fillTranslation for words that are otherwise
 // complete (legacy entries, re-saves of filled words): one cheap dictionary
-// call — no pending indicator, no AI queue. Returns false only when the
-// word still lacks a phonetic afterwards, which counts as a failed backfill
-// attempt like any other.
+// call — no pending indicator, no AI queue. Same tri-state return: null when
+// the endpoint was unreachable (not a failed attempt), false when it answered
+// but the word has no phonetic (e.g. CJK — counts, so the cap eventually
+// stops retrying words that will never have one).
 async function fillPhonetic(id, word) {
-  const phonetic = await fetchPhonetic(word).catch(() => '');
+  const phonetic = await fetchPhonetic(word).catch(() => null);
 
   await enqueueWordsWrite(words => {
     const item = words.find(w => w.id === id);
@@ -245,7 +255,7 @@ async function fillPhonetic(id, word) {
     item.updatedAt = Date.now();
   });
 
-  return Boolean(phonetic);
+  return phonetic === null ? null : Boolean(phonetic);
 }
 
 // A one-token "sentence" is the cleaned corpus fragment Google's dictionary
@@ -327,42 +337,105 @@ function freshPendingCount(pendingLookups) {
 // Phonetic transcription: Youdao's dictionary JSON endpoint (same host as
 // the dictvoice audio, no key). UK IPA is preferred; inflected forms often
 // ship only the American one. The response shape is undocumented — read
-// defensively and give up quietly (CJK words carry no phones at all).
+// defensively and give up quietly (CJK words carry no phones at all). An
+// HTTP error throws (callers' catch maps it to "unreachable"); an honest
+// answer with no phonetic returns ''.
 async function fetchPhonetic(text) {
-  const dicts = encodeURIComponent('{"count":1,"dicts":[["ec"]]}');
+  return (await fetchYoudao(text, { phoneticOnly: true })).phonetic;
+}
+
+async function fetchYoudao(text, { phoneticOnly = false } = {}) {
+  const dicts = encodeURIComponent(JSON.stringify(phoneticOnly
+    ? { count: 1, dicts: [['ec']] }
+    : { count: 3, dicts: [['ec', 'ce', 'blng_sents_part']] }));
   const url = `https://dict.youdao.com/jsonapi?jsonversion=2&client=mobile&dicts=${dicts}&q=${encodeURIComponent(text)}`;
 
   const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) return '';
+  if (!res.ok) throw new Error(`dict HTTP ${res.status}`);
 
   const data = await res.json();
+  return parseYoudao(data, /[㐀-鿿]/.test(text));
+}
+
+function parseYoudao(data, isCjk) {
   const entry = data?.simple?.word?.[0] || data?.ec?.word?.[0];
   const phonetic = String(entry?.ukphone || entry?.usphone || '').trim();
-  return phonetic && phonetic.length <= 64 ? phonetic : '';
+  const result = {
+    meaning: '', pos: '', example: '',
+    phonetic: phonetic.length <= 64 ? phonetic : ''
+  };
+  const meanings = [];
+  const dictionary = (isCjk ? data?.ce : data?.ec)?.word?.[0];
+  const posLabels = { n: 'Noun', v: 'Verb', vt: 'Verb', vi: 'Verb', adj: 'Adjective',
+    adv: 'Adverb', prep: 'Preposition', conj: 'Conjunction', pron: 'Pronoun',
+    interj: 'Interjection', int: 'Interjection', num: 'Numeral', abbr: 'Abbreviation' };
+  for (const group of Array.isArray(dictionary?.trs) ? dictionary.trs : []) {
+    for (const item of Array.isArray(group?.tr) ? group.tr : []) {
+      const parts = item?.l?.i;
+      if (!Array.isArray(parts)) continue;
+      // ce translations interleave text with link objects; ec uses strings.
+      const text = parts.map(p => typeof p === 'string' ? p
+        : typeof p?.['#text'] === 'string' ? p['#text'] : '').join('').trim();
+      const match = /^(n|v|vt|vi|adj|adv|prep|conj|pron|interj|int|num|abbr)\./i.exec(text);
+      const label = match?.[1] || /^(\w+)\./.exec(item?.l?.pos || '')?.[1];
+      if (!result.pos && label) result.pos = posLabels[label.toLowerCase()] || '';
+      const meaning = (match ? text.slice(match[0].length) : text).trim();
+      if (meaning) meanings.push(meaning);
+    }
+  }
+  result.meaning = [...new Set(meanings)].join('\n');
+  const pairs = data?.blng_sents_part?.['sentence-pair'];
+  const pair = Array.isArray(pairs) && pairs.find(p => typeof p?.sentence === 'string' && p.sentence.trim());
+  if (pair) {
+    const sentence = pair.sentence.trim();
+    const translation = typeof pair['sentence-translation'] === 'string' ? pair['sentence-translation'].trim() : '';
+    result.example = translation
+      ? (isCjk ? `${translation}\n${sentence}` : `${sentence}\n${translation}`)
+      : sentence;
+  }
+  return result;
 }
 
 async function lookup(text) {
-  // The phonetic comes from a second endpoint; run it alongside the Google
-  // call instead of after it — the AI gap below can idle ~30s, and the
-  // dictionary answer shouldn't wait behind that.
-  const phoneticPromise = fetchPhonetic(text).catch(() => '');
+  // Fetch dictionary data in parallel. Google being blocked must not discard
+  // the meaning, POS, example or phonetic that Youdao can still provide.
+  const dictionaryPromise = fetchYoudao(text).catch(() => null);
 
   const target = /[㐀-鿿]/.test(text) ? 'en' : 'zh-CN';
-  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&dt=bd&q=${encodeURIComponent(text)}`;
+  const query = `client=gtx&sl=auto&tl=${target}&dt=t&dt=bd&q=${encodeURIComponent(text)}`;
 
-  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
-  if (!res.ok) return null;
+  // googleapis rate-limits heavy use by redirecting to a www.google.com/sorry
+  // CAPTCHA page that sends no CORS headers. Don't follow redirects: a manual
+  // redirect returns an opaque, non-ok response and lets us try the fallback
+  // without requesting the CAPTCHA page. Neither endpoint requires redirects
+  // for a successful translation. If both hosts fail, use Youdao's dictionary.
+  let data = null;
+  for (const host of ['translate.googleapis.com', 'clients5.google.com']) {
+    try {
+      const res = await fetch(`https://${host}/translate_a/single?${query}`, {
+        redirect: 'manual',
+        signal: AbortSignal.timeout(15000)
+      });
+      if (res.ok) {
+        data = await res.json();
+        break;
+      }
+    } catch { /* blocked or unreachable — try the next host */ }
+  }
+  const dictionary = await dictionaryPromise;
+  if (!data && !dictionary) return null;
 
-  const data = await res.json();
-  const dict = parseDictionary(data[1]);
+  const dict = parseDictionary(data?.[1]);
+  const meaning = (data?.[0] || []).map(seg => (seg && seg[0]) || '').join('').trim()
+    || dictionary?.meaning || '';
 
-  let example = dict.example;
-  let pos = dict.pos;
+  let example = dict.example || dictionary?.example || '';
+  let pos = dict.pos || dictionary?.pos || '';
 
   // The dictionary data (dt=bd) skips some informal words entirely — e.g.
   // "vibe" returns no data[1], leaving both POS and corpus example empty.
   // Fill the gaps from the free AI endpoint in one call.
-  if (!example || !pos) {
+  if (meaning && (!example || !pos)) {
     const generated = await enqueueAiCall(() => generateExample(text, pos));
     if (generated) {
       if (!example) example = generated.example;
@@ -375,10 +448,10 @@ async function lookup(text) {
   }
 
   return {
-    meaning: (data[0] || []).map(seg => (seg && seg[0]) || '').join('').trim(),
+    meaning,
     pos,
     example,
-    phonetic: await phoneticPromise
+    phonetic: dictionary?.phonetic || ''
   };
 }
 
