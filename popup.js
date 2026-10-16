@@ -1,5 +1,44 @@
 const listEl = document.getElementById('list');
 const searchEl = document.getElementById('search');
+const addWordForm = document.getElementById('addWordForm');
+const newWordEl = document.getElementById('newWord');
+const addWordStatus = document.getElementById('addWordStatus');
+
+addWordForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const word = newWordEl.value.replace(/\s+/g, ' ').trim();
+  const button = addWordForm.querySelector('button');
+  if (button.disabled) return;
+  if (!word) {
+    addWordStatus.textContent = 'Enter a word to add.';
+    newWordEl.focus();
+    return;
+  }
+
+  button.disabled = true;
+  newWordEl.readOnly = true;
+  addWordStatus.classList.remove('error');
+  addWordStatus.textContent = 'Saving word…';
+  try {
+    const result = await chrome.runtime.sendMessage({ type: 'addWord', word });
+    if (!result?.ok) throw new Error(result?.error || 'Could not save the word. Please try again.');
+    newWordEl.value = '';
+    // Reveal the added word in both the list and the reading-mode deck.
+    searchEl.value = '';
+    searchEl.dispatchEvent(new Event('input'));
+    await loadWords();
+    addWordStatus.textContent = result.duplicate
+      ? 'Word already in your list. Missing details will be filled automatically.'
+      : 'Word added. Details will be filled automatically.';
+  } catch (error) {
+    addWordStatus.classList.add('error');
+    addWordStatus.textContent = error.message || 'Could not save the word. Please try again.';
+  } finally {
+    button.disabled = false;
+    newWordEl.readOnly = false;
+    newWordEl.focus();
+  }
+});
 
 let allWords = [];
 let pendingLookups = [];
@@ -176,7 +215,7 @@ function render() {
   if (!filtered.length) {
     listEl.innerHTML = notice + `
       <div class="empty">
-        ${allWords.length ? 'No matching words' : 'No words yet. Select text on a page and right-click to save it.'}
+        ${allWords.length ? 'No matching words' : 'No words yet. Add a word above or select text on a page and right-click to save it.'}
       </div>
     `;
     return;

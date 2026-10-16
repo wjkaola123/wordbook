@@ -48,18 +48,26 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== MENU_ID) return;
 
-  const word = (info.selectionText || '').replace(/\s+/g, ' ').trim();
-  if (!word) return;
+  await saveWord(info.selectionText, tab);
+});
 
-  const url = tab?.url || '';
-  const title = tab?.title || '';
+// Both entry points use the same queue, deduplication and automatic lookup.
+// Acknowledge the save before waiting for the slower network requests.
+async function saveWord(text, source, onSaved = () => {}) {
+  const word = typeof text === 'string' ? text.replace(/\s+/g, ' ').trim() : '';
+  if (!word) throw new Error('Enter a word to add.');
+
+  const url = source?.url || '';
+  const title = source?.title || '';
   let saved = null;
+  let duplicate = false;
 
   await enqueueWordsWrite(words => {
     const now = Date.now();
     const existing = words.find(item => item.word.toLowerCase() === word.toLowerCase());
 
     if (existing) {
+      duplicate = true;
       existing.occurrences = (existing.occurrences || 1) + 1;
       existing.updatedAt = now;
       existing.lastUrl = url || existing.lastUrl || '';
@@ -72,6 +80,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         meaning: '',
         pos: '',
         example: '',
+        phonetic: '',
         url,
         title,
         createdAt: now,
@@ -81,7 +90,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       words.unshift(saved);
     }
   });
-  await updateBadge();
+  // The write queue absorbs errors for its other callers; verify persistence
+  // before telling the page that its word was saved.
+  const { words = [] } = await chrome.storage.local.get('words');
+  if (!saved || !words.some(item => item.id === saved.id && item.updatedAt >= saved.updatedAt)) {
+    throw new Error('Could not save the word. Please try again.');
+  }
+  await ensureBackfillAlarm();
+  onSaved({ ok: true, id: saved.id, word: saved.word, duplicate });
 
   if (saved && (!saved.meaning || !saved.pos || !saved.example)) {
     await fillTranslation(saved.id, word);
@@ -90,8 +106,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     // phonetic-only call; the full lookup would refetch everything.
     await fillPhonetic(saved.id, word);
   }
-  ensureBackfillAlarm();
-});
+}
 
 // ---------- Backfill of missing / degenerate lookups ----------
 // Lookups can fail for good reasons: the AI endpoint throttles to ~1 request
@@ -287,10 +302,15 @@ function enqueueWordsWrite(mutate) {
 // directly — it sends targeted mutations here instead.
 const EDITABLE_FIELDS = ['meaning', 'pos', 'example'];
 
-chrome.runtime.onMessage.addListener(msg => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || typeof msg !== 'object') return;
 
-  if (msg.type === 'editWord') {
+  if (msg.type === 'addWord') {
+    saveWord(msg.word, null, sendResponse).catch(error => {
+      sendResponse({ ok: false, error: error.message || 'Could not save the word. Please try again.' });
+    });
+    return true; // Keep the response channel open until persistence completes.
+  } else if (msg.type === 'editWord') {
     if (!EDITABLE_FIELDS.includes(msg.field)) return;
     enqueueWordsWrite(words => {
       const item = words.find(w => w.id === msg.id);

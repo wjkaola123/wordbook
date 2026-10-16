@@ -120,7 +120,7 @@ function renderReader() {
     card = null; // the built card went away with the slot content
     slotEl.innerHTML = (syncError ? `<div class="sync-error">${escapeHtml(syncError)}</div>` : '') + `
       <div class="empty">
-        ${allWords.length ? 'No matching words' : 'No words yet. Select text on a page and right-click to save it.'}
+        ${allWords.length ? 'No matching words' : 'No words yet. Add a word above or select text on a page and right-click to save it.'}
       </div>`;
     navEl.hidden = true;
     return;

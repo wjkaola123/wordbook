@@ -97,6 +97,57 @@ header button svg {
   overflow: auto;
 }
 
+.add-word-form {
+  margin: 10px 14px 6px;
+}
+
+.add-word-row {
+  display: flex;
+  gap: 8px;
+}
+
+#newWord {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+#newWord:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.add-word-row button {
+  flex: none;
+  padding: 7px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--marker);
+  cursor: pointer;
+}
+
+.add-word-row button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+#addWordStatus {
+  margin: 5px 0 0;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+#addWordStatus.error {
+  color: var(--red);
+}
+
 #list::-webkit-scrollbar {
   width: 8px;
 }

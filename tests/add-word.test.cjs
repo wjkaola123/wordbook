@@ -1,0 +1,103 @@
+const assert = require('node:assert/strict');
+const { readFileSync } = require('node:fs');
+const { join } = require('node:path');
+const { test } = require('node:test');
+const { randomUUID } = require('node:crypto');
+const vm = require('node:vm');
+
+function harness({ failWrite = false, offline = false } = {}) {
+  const stored = { words: [] };
+  const listeners = {};
+  const listener = name => ({ addListener(fn) { listeners[name] = fn; } });
+  const noop = { addListener() {} };
+  const context = vm.createContext({
+    AbortSignal, TextEncoder, URL, setTimeout, clearTimeout, crypto: { randomUUID },
+    chrome: {
+      runtime: { onInstalled: noop, onStartup: noop, onMessage: listener('message') },
+      contextMenus: { onClicked: listener('menu') },
+      action: { async setBadgeText() {}, async setBadgeBackgroundColor() {} },
+      alarms: { onAlarm: noop, async get() { return {}; } },
+      storage: {
+        onChanged: noop,
+        local: {
+          async get() { return structuredClone(stored); },
+          async set(values) {
+            if (failWrite && values.words) throw new Error('Storage full');
+            Object.assign(stored, structuredClone(values));
+          }
+        }
+      }
+    },
+    async fetch(url) {
+      if (offline) throw new TypeError('Failed to fetch');
+      const data = new URL(url).hostname === 'dict.youdao.com'
+        ? { simple: { word: [{ ukphone: 'test' }] } }
+        : [[['测试', 'test']], [['名词', [], [['test', [['This is a test.']]]]]]];
+      return { ok: true, json: async () => data };
+    }
+  });
+  vm.runInContext(readFileSync(join(__dirname, '../background.js'), 'utf8'), context);
+  return {
+    stored,
+    save: (word, source, onSaved) => context.saveWord(word, source, onSaved),
+    message: word => new Promise(resolve => {
+      assert.equal(listeners.message({ type: 'addWord', word }, {}, resolve), true);
+    })
+  };
+}
+
+test('page saves immediately and automatically fills all dictionary fields', async () => {
+  const h = harness();
+  let acknowledged = false;
+  await h.save('  test\n  word  ', null, response => {
+    acknowledged = true;
+    assert.equal(response.ok, true);
+    assert.equal(h.stored.words[0].word, 'test word');
+    assert.equal(h.stored.words[0].meaning, '');
+  });
+  assert.equal(acknowledged, true);
+  const item = h.stored.words[0];
+  assert.equal(item.meaning, '测试');
+  assert.equal(item.pos, 'Noun');
+  assert.equal(item.example, 'This is a test.');
+  assert.equal(item.phonetic, 'test');
+  assert.equal(item.url, '');
+  assert.deepEqual(h.stored.pendingLookups, []);
+});
+
+test('concurrent manual and context saves deduplicate and preserve existing details and source', async () => {
+  const h = harness();
+  await h.save('Test', { url: 'https://example.com', title: 'Source' });
+  h.stored.words[0].meaning = 'Custom meaning';
+  const id = h.stored.words[0].id;
+  await Promise.all([h.save('TEST'), h.save('test')]);
+  assert.equal(h.stored.words.length, 1);
+  assert.equal(h.stored.words[0].id, id);
+  assert.equal(h.stored.words[0].occurrences, 3);
+  assert.equal(h.stored.words[0].meaning, 'Custom meaning');
+  assert.equal(h.stored.words[0].url, 'https://example.com');
+});
+
+test('addWord message rejects blank and non-string input without creating entries', async () => {
+  const h = harness();
+  for (const input of [' \n ', null, 123, {}]) {
+    const result = await h.message(input);
+    assert.equal(result.ok, false);
+    assert.match(result.error, /Enter a word/);
+  }
+  assert.equal(h.stored.words.length, 0);
+});
+
+test('addWord message reports a failed storage write', async () => {
+  const h = harness({ failWrite: true });
+  assert.equal((await h.message('test')).ok, false);
+  assert.equal(h.stored.words.length, 0);
+});
+
+test('offline lookup keeps the saved word for automatic backfill', async () => {
+  const h = harness({ offline: true });
+  await h.save('test');
+  assert.equal(h.stored.words.length, 1);
+  assert.equal(h.stored.words[0].meaning, '');
+  assert.deepEqual(h.stored.pendingLookups, []);
+});
