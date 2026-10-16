@@ -17,6 +17,15 @@
       padding: 0 28px 56px;
     }
 
+    /* Use the body's gutters for every section so their edges line up. */
+    header {
+      padding-inline: 0;
+    }
+
+    .add-word-form {
+      margin-inline: 0;
+    }
+
     #search {
       width: 100%;
       margin: 2px 0 4px;
@@ -25,7 +34,7 @@
     #list {
       max-height: none;
       overflow: visible;
-      padding: 2px 4px 14px;
+      padding: 2px 0 14px;
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
       gap: 10px;
