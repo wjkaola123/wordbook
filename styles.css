@@ -24,6 +24,13 @@
 
 body {
   width: 380px;
+  /* The popup's own vertical scrollbar takes ~15px of the 380px view once the
+     list outgrows the popup's 600px height cap. A fixed 380px body then
+     overflows the narrower client box: the page becomes horizontally
+     scrollable (a stray scrollbar strip appears along the bottom) and every
+     focus reveal nudges it sideways a pixel or two. Cap at 100% so the
+     bubble reflows to the width actually visible. */
+  max-width: 100%;
   margin: 0;
   font: 13px/1.55 var(--sans);
   color: var(--ink);
