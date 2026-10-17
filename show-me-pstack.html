@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>pstack — how it works</title>
+<style>
+  :root {
+    --background: #101012; --foreground: #ececee;
+    --muted-foreground: #9b9ba3; --card: #19191d; --border: #2a2a30;
+    --code-background: #24242a; --code-foreground: #d6d6dc;
+    --radius: 10px;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --font-mono: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+    --chart-1: #4e79a7; --chart-2: #59a14f; --chart-3: #e15759;
+    --chart-4: #b07aa1; --chart-5: #f28e2b;
+  }
+  html, body { margin: 0; padding: 0; background: var(--background); }
+  body { font-family: var(--font-sans); color: var(--foreground); padding: 20px 16px 28px; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 0; letter-spacing: -0.02em; }
+  .tag { color: var(--muted-foreground); font-size: 14px; margin: 4px 0 14px; }
+  .tag em { color: var(--foreground); font-style: normal; font-weight: 600; }
+  .stats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .stat { font-size: 12px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted-foreground); background: var(--card); }
+  .stat b { color: var(--foreground); font-weight: 600; margin-right: 4px; }
+  .stage { display: grid; grid-template-columns: 84px 1fr; gap: 12px; align-items: stretch; }
+  .chipcol { display: flex; flex-direction: column; align-items: flex-end; padding-top: 2px; }
+  .chip { font-family: var(--font-mono); font-size: 11px; padding: 3px 9px; border-radius: 999px; color: #fff; white-space: nowrap; }
+  .c1 { background: var(--chart-1); } .c2 { background: var(--chart-2); } .c3 { background: var(--chart-3); }
+  .c4 { background: var(--chart-4); } .c5 { background: var(--chart-5); }
+  .stage-label { font-size: 11px; color: var(--muted-foreground); margin-top: 5px; text-align: right; }
+  .box { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px; }
+  .box h3 { margin: 0 0 6px; font-size: 14px; }
+  .box p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--muted-foreground); }
+  .box p b { color: var(--foreground); font-weight: 600; }
+  code { font-family: var(--font-mono); font-size: 12px; background: var(--code-background); color: var(--code-foreground); padding: 1px 5px; border-radius: 4px; }
+  .arrow { text-align: right; width: 84px; color: var(--muted-foreground); font-size: 13px; line-height: 1; margin: 2px 0 8px 36px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 16px; }
+  .mini { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
+  .mini h4 { margin: 0 0 6px; font-size: 13px; }
+  .mini p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--muted-foreground); }
+  .mini p + p { margin-top: 5px; }
+  .foot { margin-top: 16px; font-size: 12px; color: var(--muted-foreground); border-top: 1px solid var(--border); padding-top: 10px; line-height: 1.6; }
+  .foot b { color: var(--foreground); }
+  @media (max-width: 560px) { .stage { grid-template-columns: 1fr; } .chipcol { flex-direction: row; gap: 8px; align-items: center; } .stage-label { text-align: left; margin-top: 0; } .arrow { width: auto; text-align: left; margin-left: 0; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>pstack</h1>
+  <p class="tag">"if you want to go fast, <em>go deep first</em>." — Lauren Tan (poteto)</p>
+
+  <div class="stats">
+    <span class="stat"><b>54</b>skills</span>
+    <span class="stat"><b>23</b>playbooks</span>
+    <span class="stat"><b>24</b>principles</span>
+    <span class="stat"><b>2</b>subagents</span>
+    <span class="stat"><b>~7k</b>lines of scripts</span>
+  </div>
+
+  <div class="stage">
+    <div class="chipcol"><span class="chip c1">1 Route</span><span class="stage-label">入口只有一个</span></div>
+    <div class="box">
+      <h3><code>/poteto-mode</code> — the router</h3>
+      <p>你只给 <b>目标 + 一个能判成败的完成标准</b>。路由器读 24 条 principle 的索引，从 23 个 playbook 里挑一个。不给技能清单、不给自己的猜测。</p>
+    </div>
+  </div>
+  <div class="arrow">↓</div>
+
+  <div class="stage">
+    <div class="chipcol"><span class="chip c2">2 Steps</span><span class="stage-label">步骤即合同</span></div>
+    <div class="box">
+      <h3>playbook → todo list</h3>
+      <p>选中的 playbook 步骤<b>逐字复制进 todo</b>。每个 playbook 以一句"你拥有什么"开场，以 <code>Reply:</code> 输出契约收尾。跳过的步骤留痕为 <code>skip: &lt;reason&gt;</code>。</p>
+    </div>
+  </div>
+  <div class="arrow">↓</div>
+
+  <div class="stage">
+    <div class="chipcol"><span class="chip c3">3 Fan out</span><span class="stage-label">按角色分模型</span></div>
+    <div class="box">
+      <h3>workflow skills 派发子代理</h3>
+      <p><code>how</code>: 2–4 个廉价 explorer 读代码 → 1 个强模型 explainer 写解释 · <code>why</code>: 每个证据源一个 investigator → 一个 synthesizer · <code>arena</code>: N 个 runner 竞争 → 跨模型盲评 judge → 嫁接最优 · <code>swarm</code>: N 个并行 worker → 汇总一张表。判断用 <b>Opus xhigh</b>，阅读和机械改动用 <b>Grok fast</b>。</p>
+    </div>
+  </div>
+  <div class="arrow">↓</div>
+
+  <div class="stage">
+    <div class="chipcol"><span class="chip c4">4 Apply</span><span class="stage-label">叶技能收口</span></div>
+    <div class="box">
+      <h3>leaf skills + 24 principles</h3>
+      <p>产出过 <code>unslop</code>（去腔调）、<code>no-comments</code>（Comment Sicko 删注释）、<code>tdd</code>、<code>benchmark-checklist</code>。引用一条 principle 前必须打开它的叶子文件，回复里要点名<b>哪些 principle 改变了决策</b>。</p>
+    </div>
+  </div>
+  <div class="arrow">↓</div>
+
+  <div class="stage">
+    <div class="chipcol"><span class="chip c5">5 Ship</span><span class="stage-label">证据先于合并</span></div>
+    <div class="box">
+      <h3>proof on the real app → PR</h3>
+      <p>必须跑真实应用证明行为（<code>verify-&lt;app&gt;</code> skill + <code>watch-pr</code> 脚本出类型化判决）。产出是<b>小而有序的 PR 序列</b>，"绿了 build"不算成功。</p>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="mini">
+      <h4>技能的解剖</h4>
+      <p>53/54 个技能设 <code>disable-model-invocation</code> —— 不输入命令就不加载。</p>
+      <p>规则写在 description（"Apply when…"），正文只留装不下的部分；principle 可以只有 34 词。</p>
+      <p><code>references/</code> 按子代理命名，每个子代理有固定输出契约。</p>
+    </div>
+    <div class="mini">
+      <h4>作者 ≠ 批评者</h4>
+      <p>judge 必须来自<b>不同模型家族</b>，且看不到候选的模型名 —— "agreement is high-signal"。</p>
+      <p>删注释的 Comment Sicko 是独立代理："作者会像你一样为自己写的注释辩护。"</p>
+    </div>
+    <div class="mini">
+      <h4>每句话带证据</h4>
+      <p>所有 claim 标注 <code>measured</code> / <code>inferred</code> / <code>guess</code>。</p>
+      <p>搜不到的源、空结果、不确定处<b>必须写出来</b>："如果没提任何 gap，反而可疑。"</p>
+      <p>规则尽量变成脚本（<code>check-plan</code>、<code>watch-pr</code>、<code>orch</code>），提示词只留判断。</p>
+    </div>
+  </div>
+
+  <p class="foot">深度优先，不是广度优先：先让<b>一个</b> agent 的输出变得可验证，再放量并行 —— "naive parallelization just makes them write slop faster"。你本机的 CC 已装为 <code>pstack@cursor-plugins</code> 插件，技能以 <code>/pstack:</code> 前缀调用。</p>
+</div>
+</body>
+</html>
