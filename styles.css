@@ -124,6 +124,12 @@ header button svg {
      zeroes a flex item's automatic minimum, so it can compress freely) */
   flex: 0 1 auto;
   overflow: auto;
+  /* The list content grows as delayed lookups/backfills land (storage
+     refreshes re-render it), and the moment it crosses the height cap the
+     scrollbar appears — stealing 8px of width, rewrapping every line and
+     jumping the right-hand button column sideways. Reserving the gutter
+     up front makes the scrollbar's comings and goings a no-op. */
+  scrollbar-gutter: stable;
 }
 
 .add-word-form {
