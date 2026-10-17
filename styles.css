@@ -24,17 +24,31 @@
 
 body {
   width: 380px;
-  /* The popup's own vertical scrollbar takes ~15px of the 380px view once the
-     list outgrows the popup's 600px height cap. A fixed 380px body then
-     overflows the narrower client box: the page becomes horizontally
-     scrollable (a stray scrollbar strip appears along the bottom) and every
-     focus reveal nudges it sideways a pixel or two. Cap at 100% so the
-     bubble reflows to the width actually visible. */
+  /* The popup window never grows past 600px tall. Header, search and the
+     add-form are fixed chrome, and #list used to stack its own 480px cap
+     on top of them (~660px total), so the WINDOW grew a second scrollbar
+     over the list's: it shaved 15px off the 380px view, and the focus
+     reveal of a click or autofocus nudged the squeezed page sideways a
+     pixel or two. As a 600px-capped flex column in which only #list may
+     shrink, the document always fits the window and that outer scrollbar
+     — the whole class of shifts — never appears. */
+  display: flex;
+  flex-direction: column;
+  max-height: 600px;
+  /* Belt-and-braces for any scrollbar that ever does show up */
   max-width: 100%;
   margin: 0;
   font: 13px/1.55 var(--sans);
   color: var(--ink);
   background: var(--paper);
+}
+
+/* The fixed chrome keeps its natural height when the 600px cap binds;
+   #list is the only section that gives way */
+header,
+#search,
+.add-word-form {
+  flex: none;
 }
 
 header {
@@ -78,7 +92,11 @@ header button svg {
 
 #search {
   width: calc(100% - 28px);
-  margin: 2px 14px 4px;
+  /* No bottom margin: the add-form's 10px top margin already supplies the
+     gap. In a block flow the two would collapse to 10px anyway, but the
+     popup's flex column doesn't collapse margins — a 4px one here would
+     widen the gap to 14px there. */
+  margin: 2px 14px 0;
   padding: 7px 10px;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -101,6 +119,10 @@ header button svg {
 #list {
   padding: 2px 14px 14px;
   max-height: 480px;
+  /* The body's one shrinkable section: takes whatever the 600px cap leaves
+     instead of pushing the document past the popup window (overflow:auto
+     zeroes a flex item's automatic minimum, so it can compress freely) */
+  flex: 0 1 auto;
   overflow: auto;
 }
 

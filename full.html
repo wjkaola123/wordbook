@@ -13,6 +13,10 @@
     body {
       width: auto;
       max-width: 1400px;
+      /* The popup caps itself at 600px as a flex column; this page scrolls
+         the window instead */
+      display: block;
+      max-height: none;
       margin: 0 auto;
       padding: 0 28px 56px;
     }
