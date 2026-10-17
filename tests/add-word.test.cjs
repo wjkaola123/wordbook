@@ -49,7 +49,7 @@ function harness({ failWrite = false, offline = false } = {}) {
 test('page saves immediately and automatically fills all dictionary fields', async () => {
   const h = harness();
   let acknowledged = false;
-  await h.save('  test\n  word  ', null, response => {
+  await h.save('  TEST\n  Word  ', null, response => {
     acknowledged = true;
     assert.equal(response.ok, true);
     assert.equal(h.stored.words[0].word, 'test word');
@@ -68,12 +68,15 @@ test('page saves immediately and automatically fills all dictionary fields', asy
 test('concurrent manual and context saves deduplicate and preserve existing details and source', async () => {
   const h = harness();
   await h.save('Test', { url: 'https://example.com', title: 'Source' });
+  assert.equal(h.stored.words[0].word, 'test');
+  h.stored.words[0].word = 'Test';
   h.stored.words[0].meaning = 'Custom meaning';
   const id = h.stored.words[0].id;
   await Promise.all([h.save('TEST'), h.save('test')]);
   assert.equal(h.stored.words.length, 1);
   assert.equal(h.stored.words[0].id, id);
   assert.equal(h.stored.words[0].occurrences, 3);
+  assert.equal(h.stored.words[0].word, 'test');
   assert.equal(h.stored.words[0].meaning, 'Custom meaning');
   assert.equal(h.stored.words[0].url, 'https://example.com');
 });

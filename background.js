@@ -54,7 +54,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 // Both entry points use the same queue, deduplication and automatic lookup.
 // Acknowledge the save before waiting for the slower network requests.
 async function saveWord(text, source, onSaved = () => {}) {
-  const word = typeof text === 'string' ? text.replace(/\s+/g, ' ').trim() : '';
+  const word = typeof text === 'string' ? text.replace(/\s+/g, ' ').trim().toLowerCase() : '';
   if (!word) throw new Error('Enter a word to add.');
 
   const url = source?.url || '';
@@ -68,6 +68,7 @@ async function saveWord(text, source, onSaved = () => {}) {
 
     if (existing) {
       duplicate = true;
+      existing.word = word;
       existing.occurrences = (existing.occurrences || 1) + 1;
       existing.updatedAt = now;
       existing.lastUrl = url || existing.lastUrl || '';

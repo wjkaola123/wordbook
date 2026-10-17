@@ -98,6 +98,10 @@ let currentAudio = null;
 
 function speakWord(text, accent) {
   if (!text) return;
+  // Youdao's audio lookup is case-sensitive: "Endearingly" returns 500
+  // ("returned null audio"), while "endearingly" has a valid clip.
+  // Normalize only the lookup/cache key; keep the saved spelling intact.
+  text = text.toLowerCase();
   const type = accent === 'us' ? 2 : 1;
   const key = `${type}:${text}`;
 
