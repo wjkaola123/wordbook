@@ -2,6 +2,38 @@ const selectionToggle = document.getElementById('selectionTranslation');
 const settingsStatus = document.getElementById('settingsStatus');
 const exportButton = document.getElementById('export');
 const exportStatus = document.getElementById('exportStatus');
+const importButton = document.getElementById('import');
+const importFile = document.getElementById('importFile');
+const importStatus = document.getElementById('importStatus');
+
+importButton.addEventListener('click', () => importFile.click());
+importFile.addEventListener('change', async () => {
+  const file = importFile.files[0];
+  if (!file) return;
+  importButton.disabled = true;
+  importFile.disabled = true;
+  importStatus.classList.remove('error');
+  importStatus.textContent = 'Importing words…';
+  try {
+    const text = await file.text();
+    let words;
+    try {
+      words = JSON.parse(text.replace(/^\uFEFF/, ''));
+    } catch {
+      throw new Error('Invalid JSON file. Choose a Wordbook JSON export.');
+    }
+    const result = await chrome.runtime.sendMessage({ type: 'importWords', words });
+    if (!result?.ok) throw new Error(result?.error || 'Could not import words. Please try again.');
+    importStatus.textContent = `Import complete: ${result.added} added, ${result.merged} duplicate entries merged.`;
+  } catch (error) {
+    importStatus.classList.add('error');
+    importStatus.textContent = error.message || 'Could not read the file. Please try again.';
+  } finally {
+    importFile.value = '';
+    importFile.disabled = false;
+    importButton.disabled = false;
+  }
+});
 
 exportButton.addEventListener('click', async () => {
   exportButton.disabled = true;

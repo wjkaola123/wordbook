@@ -48,6 +48,69 @@ function harness({ failWrite = false, offline = false } = {}) {
   };
 }
 
+function importBackup(h, words) {
+  return new Promise(resolve => {
+    assert.equal(h.dispatch({ type: 'importWords', words }, {}, resolve), true);
+  });
+}
+
+test('import round-trips backup fields, merges duplicates without overwriting edits, and avoids ID collisions', async () => {
+  const h = harness();
+  h.stored.words = [{ id: 'same', word: 'Apple', meaning: 'Custom', createdAt: 10, updatedAt: 20, occurrences: 2 }];
+  const backup = [
+    { id: 'remote', word: 'APPLE', meaning: 'Imported', example: 'An apple.', phonetic: 'apl', createdAt: 5, updatedAt: 99, occurrences: 3 },
+    { id: 'same', word: ' pear ', meaning: '梨', pos: 'Noun', example: 'A pear.', phonetic: 'peə', url: 'https://example.com', title: 'Source', lastUrl: '', lastTitle: '', createdAt: 30, updatedAt: 40, occurrences: 1 },
+    { word: 'PEAR', meaning: 'Do not overwrite' }
+  ];
+  const result = await importBackup(h, backup);
+  assert.equal(result.ok, true);
+  assert.equal(result.added, 1);
+  assert.equal(result.merged, 2);
+  assert.equal(h.stored.words.length, 2);
+  const apple = h.stored.words.find(w => w.word === 'Apple');
+  assert.equal(apple.id, 'same');
+  assert.equal(apple.meaning, 'Custom');
+  assert.equal(apple.example, 'An apple.');
+  assert.equal(apple.occurrences, 3);
+  const pear = h.stored.words[0];
+  assert.notEqual(pear.id, 'same');
+  assert.equal(pear.word, 'pear');
+  for (const key of ['meaning', 'pos', 'example', 'phonetic', 'url', 'title', 'createdAt', 'updatedAt', 'occurrences']) {
+    assert.equal(pear[key], backup[1][key]);
+  }
+  const again = await importBackup(h, JSON.parse(JSON.stringify(h.stored.words)));
+  assert.equal(again.added, 0);
+  assert.equal(h.stored.words.length, 2);
+  assert.equal(h.stored.words.find(w => w.word === 'Apple').occurrences, 3);
+});
+
+test('import validates the whole file before writing and accepts an empty backup', async () => {
+  const h = harness();
+  for (const invalid of [{}, null, [null], [{word: ''}], [{word: 'ok'}, {word: 123}], [{word: 'ok', meaning: {}}], [{word: 'ok', createdAt: -1}], [{word: 'ok', occurrences: 0}]]) {
+    const result = await importBackup(h, invalid);
+    assert.equal(result.ok, false);
+    assert.equal(h.stored.words.length, 0);
+  }
+  assert.equal((await importBackup(h, [])).ok, true);
+});
+
+test('import reports storage failures and shares the queue with other writes', async () => {
+  const failed = harness({ failWrite: true });
+  assert.equal((await importBackup(failed, [{word: 'apple'}])).ok, false);
+  assert.equal(failed.stored.words.length, 0);
+  const h = harness();
+  await Promise.all([
+    importBackup(h, [{word: 'apple'}]),
+    importBackup(h, [{word: 'pear'}, {word: 'APPLE', meaning: '苹果'}])
+  ]);
+  assert.equal(h.stored.words.length, 2);
+  assert.equal(h.stored.words.find(w => w.word === 'apple').meaning, '苹果');
+  const sender = { tab: { url: 'https://example.com' }, url: 'https://example.com' };
+  h.dispatch({type: 'importWords', words: [{word: 'forbidden'}]}, sender, () => assert.fail('Content script import accepted'));
+  await h.context.enqueueWordsWrite(() => false);
+  assert.equal(h.stored.words.length, 2);
+});
+
 test('page saves immediately and automatically fills all dictionary fields', async () => {
   const h = harness();
   let acknowledged = false;

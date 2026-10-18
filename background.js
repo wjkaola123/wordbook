@@ -291,12 +291,75 @@ function isDegenerateExample(item) {
 // storage.local.set outside this queue.
 let wordsChain = Promise.resolve();
 
-function enqueueWordsWrite(mutate) {
-  wordsChain = wordsChain.then(async () => {
+function enqueueWordsWrite(mutate, { throwOnError = false } = {}) {
+  const operation = wordsChain.then(async () => {
     const { words = [] } = await chrome.storage.local.get('words');
     if (mutate(words) !== false) await chrome.storage.local.set({ words });
-  }).catch(() => {});
-  return wordsChain;
+  });
+  wordsChain = operation.catch(() => {});
+  return throwOnError ? operation : wordsChain;
+}
+
+// Validate the entire backup before entering the write queue. Only known
+// fields are copied; imported IDs must never collide with another word.
+async function importWords(entries) {
+  if (!Array.isArray(entries)) throw new Error('Choose a Wordbook JSON export containing an array of words.');
+  const now = Date.now();
+  const textFields = ['meaning', 'pos', 'example', 'phonetic', 'url', 'title', 'lastUrl', 'lastTitle'];
+  const incoming = entries.map((entry, index) => {
+    const invalid = () => new Error(`Invalid word at entry ${index + 1}. Please check the JSON file.`);
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry) || typeof entry.word !== 'string') throw invalid();
+    const word = entry.word.replace(/\s+/g, ' ').trim();
+    if (!word) throw invalid();
+    const item = { word };
+    if (entry.id !== undefined && (typeof entry.id !== 'string' || !entry.id.trim())) throw invalid();
+    item.id = entry.id || crypto.randomUUID();
+    for (const field of textFields) {
+      if (entry[field] !== undefined && typeof entry[field] !== 'string') throw invalid();
+      item[field] = entry[field] || '';
+    }
+    for (const field of ['createdAt', 'updatedAt']) {
+      const value = entry[field];
+      if (value !== undefined && (!Number.isSafeInteger(value) || value < 0 || value > 8640000000000000)) throw invalid();
+      item[field] = value ?? (field === 'updatedAt' ? item.createdAt : now);
+    }
+    if (entry.occurrences !== undefined && (!Number.isSafeInteger(entry.occurrences) || entry.occurrences < 1)) throw invalid();
+    item.occurrences = entry.occurrences ?? 1;
+    return item;
+  });
+  let added = 0;
+  let merged = 0;
+  await enqueueWordsWrite(words => {
+    const byWord = new Map(words.map(item => [item.word.toLowerCase(), item]));
+    const ids = new Set(words.map(item => item.id));
+    for (const item of incoming) {
+      const key = item.word.toLowerCase();
+      const existing = byWord.get(key);
+      if (existing) {
+        let changed = false;
+        for (const field of textFields) {
+          if (!existing[field] && item[field]) {
+            existing[field] = item[field];
+            changed = true;
+          }
+        }
+        const occurrences = Math.max(existing.occurrences || 1, item.occurrences);
+        if (occurrences !== (existing.occurrences || 1)) changed = true;
+        existing.occurrences = occurrences;
+        if (changed) existing.updatedAt = now;
+        merged++;
+      } else {
+        if (ids.has(item.id)) item.id = crypto.randomUUID();
+        ids.add(item.id);
+        byWord.set(key, item);
+        words.push(item);
+        added++;
+      }
+    }
+    if (!incoming.length) return false;
+    words.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  }, { throwOnError: true });
+  return { ok: true, added, merged };
 }
 
 // The popup can't join the queue across contexts, so it never writes `words`
@@ -332,6 +395,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse({ ok: false, error: error.message || 'Could not save the word. Please try again.' });
     });
     return true; // Keep the response channel open until persistence completes.
+  } else if (msg.type === 'importWords') {
+    importWords(msg.words).then(sendResponse).catch(error => {
+      sendResponse({ ok: false, error: error.message || 'Could not import words. Please try again.' });
+    });
+    return true;
   } else if (msg.type === 'editWord') {
     if (!EDITABLE_FIELDS.includes(msg.field)) return;
     enqueueWordsWrite(words => {
