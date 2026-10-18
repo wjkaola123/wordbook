@@ -546,3 +546,5 @@ a:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+.selection-setting { display: flex; align-items: center; gap: 8px; margin: 8px 0 12px; font-size: 13px; }
+.selection-setting input { width: auto; margin: 0; }

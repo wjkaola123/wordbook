@@ -306,6 +306,27 @@ const EDITABLE_FIELDS = ['meaning', 'pos', 'example'];
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || typeof msg !== 'object') return;
 
+  if (sender.tab && !sender.url?.startsWith(chrome.runtime.getURL(''))) {
+    // Content scripts may query/save a selection, never edit or clear the list.
+    if (!['translateSelection', 'saveSelection', 'pronounceSelection'].includes(msg.type)) return;
+    if (!/^https?:\/\//.test(sender.url || sender.tab.url || '') || sender.frameId > 0) return;
+    const word = normalizeSelectionWord(msg.word);
+    if (!word) { sendResponse({ ok: false, error: 'Select one English word.' }); return; }
+    (async () => {
+      const { selectionTranslationEnabled = true } = await chrome.storage.local.get('selectionTranslationEnabled');
+      if (!selectionTranslationEnabled) throw new Error('Selection translation is disabled.');
+      if (msg.type === 'translateSelection') {
+        sendResponse({ ok: true, ...await translateSelection(word) });
+      } else if (msg.type === 'pronounceSelection') {
+        if (!['uk', 'us'].includes(msg.accent)) throw new Error('Invalid accent.');
+        sendResponse(await pronounceSelection(word, msg.accent));
+      } else {
+        await saveWord(word, sender.tab, sendResponse);
+      }
+    })().catch(() => sendResponse({ ok: false, error: 'Could not complete the request. Please retry.' }));
+    return true;
+  }
+
   if (msg.type === 'addWord') {
     saveWord(msg.word, null, sendResponse).catch(error => {
       sendResponse({ ok: false, error: error.message || 'Could not save the word. Please try again.' });
@@ -332,6 +353,54 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
   }
 });
+
+function normalizeSelectionWord(value) {
+  if (typeof value !== 'string') return '';
+  const word = value.trim().replace(/’/g, "'");
+  return word.length <= 64 && /^[a-z]+(?:['-][a-z]+)*$/i.test(word) ? word.toLowerCase() : '';
+}
+
+let audioDocumentCreation = null;
+async function pronounceSelection(word, accent) {
+  // Audio belongs to the extension so the visited site's media-src CSP cannot
+  // block Youdao playback. Concurrent clicks share one offscreen document.
+  if (!audioDocumentCreation) {
+    audioDocumentCreation = (async () => {
+      if (!await chrome.offscreen.hasDocument()) {
+        await chrome.offscreen.createDocument({
+          url: 'audio.html', reasons: ['AUDIO_PLAYBACK'],
+          justification: 'Play British and American word pronunciation from the selection card.'
+        });
+      }
+    })().finally(() => { audioDocumentCreation = null; });
+  }
+  await audioDocumentCreation;
+  return chrome.runtime.sendMessage({ type: 'playPronunciation', word, accent });
+}
+
+const selectionCache = new Map();
+const selectionRequests = new Map();
+async function translateSelection(word) {
+  const { words = [] } = await chrome.storage.local.get('words');
+  const saved = words.find(item => item.word.toLowerCase() === word);
+  if (saved?.meaning) return { meaning: saved.meaning, pos: saved.pos, phonetic: saved.phonetic, saved: true };
+  let entry = selectionCache.get(word);
+  if (!entry || Date.now() - entry.at > 10 * 60 * 1000) {
+    if (!selectionRequests.has(word)) {
+      const request = lookup(word, { quick: true }).then(result => {
+        if (!result?.meaning) throw new Error('No translation available.');
+        const value = { at: Date.now(), result };
+        selectionCache.delete(word);
+        selectionCache.set(word, value);
+        if (selectionCache.size > 200) selectionCache.delete(selectionCache.keys().next().value);
+        return value;
+      }).finally(() => selectionRequests.delete(word));
+      selectionRequests.set(word, request);
+    }
+    entry = await selectionRequests.get(word);
+  }
+  return { meaning: entry.result.meaning, pos: entry.result.pos, phonetic: entry.result.phonetic, saved: Boolean(saved) };
+}
 
 let pendingChain = Promise.resolve();
 
@@ -417,7 +486,7 @@ function parseYoudao(data, isCjk) {
   return result;
 }
 
-async function lookup(text) {
+async function lookup(text, { quick = false } = {}) {
   // Fetch dictionary data in parallel. Google being blocked must not discard
   // the meaning, POS, example or phonetic that Youdao can still provide.
   const dictionaryPromise = fetchYoudao(text).catch(() => null);
@@ -456,7 +525,7 @@ async function lookup(text) {
   // The dictionary data (dt=bd) skips some informal words entirely — e.g.
   // "vibe" returns no data[1], leaving both POS and corpus example empty.
   // Fill the gaps from the free AI endpoint in one call.
-  if (meaning && (!example || !pos)) {
+  if (!quick && meaning && (!example || !pos)) {
     const generated = await enqueueAiCall(() => generateExample(text, pos));
     if (generated) {
       if (!example) example = generated.example;

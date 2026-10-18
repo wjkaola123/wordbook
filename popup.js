@@ -4,6 +4,23 @@ const addWordForm = document.getElementById('addWordForm');
 const newWordEl = document.getElementById('newWord');
 const addWordStatus = document.getElementById('addWordStatus');
 
+const selectionToggle = document.getElementById('selectionTranslation');
+if (selectionToggle) {
+  chrome.storage.local.get('selectionTranslationEnabled').then(settings => {
+    selectionToggle.checked = settings.selectionTranslationEnabled !== false;
+  });
+  selectionToggle.addEventListener('change', async () => {
+    selectionToggle.disabled = true;
+    try {
+      await chrome.storage.local.set({ selectionTranslationEnabled: selectionToggle.checked });
+    } catch {
+      selectionToggle.checked = !selectionToggle.checked;
+    } finally {
+      selectionToggle.disabled = false;
+    }
+  });
+}
+
 addWordForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const word = newWordEl.value.replace(/\s+/g, ' ').trim();
