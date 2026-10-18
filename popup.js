@@ -4,22 +4,9 @@ const addWordForm = document.getElementById('addWordForm');
 const newWordEl = document.getElementById('newWord');
 const addWordStatus = document.getElementById('addWordStatus');
 
-const selectionToggle = document.getElementById('selectionTranslation');
-if (selectionToggle) {
-  chrome.storage.local.get('selectionTranslationEnabled').then(settings => {
-    selectionToggle.checked = settings.selectionTranslationEnabled !== false;
-  });
-  selectionToggle.addEventListener('change', async () => {
-    selectionToggle.disabled = true;
-    try {
-      await chrome.storage.local.set({ selectionTranslationEnabled: selectionToggle.checked });
-    } catch {
-      selectionToggle.checked = !selectionToggle.checked;
-    } finally {
-      selectionToggle.disabled = false;
-    }
-  });
-}
+document.getElementById('settings')?.addEventListener('click', () => {
+  chrome.runtime.openOptionsPage();
+});
 
 addWordForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -403,22 +390,6 @@ function popGlyph(btn) {
 }
 
 searchEl.addEventListener('input', render);
-
-document.getElementById('export').addEventListener('click', () => {
-  const blob = new Blob(
-    [JSON.stringify(allWords, null, 2)],
-    { type: 'application/json' }
-  );
-
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-
-  a.href = url;
-  a.download = `wordbook-${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-
-  URL.revokeObjectURL(url);
-});
 
 // The expand button opens the same list in a full tab (full.html reuses
 // this script and the shared stylesheet).

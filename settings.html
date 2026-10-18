@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Settings · Wordbook</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="settings.css" />
+</head>
+<body>
+  <header><h1><span class="mark">Wordbook</span></h1></header>
+  <main>
+    <h2>Settings</h2>
+    <section aria-label="Translation settings">
+      <label class="setting-row" for="selectionTranslation">
+        <span>
+          <span class="setting-title">Selection translation</span>
+          <span class="setting-description" id="selectionDescription">Show a Chinese translation when you select an English word on a webpage.</span>
+        </span>
+        <input type="checkbox" id="selectionTranslation" aria-describedby="selectionDescription" disabled />
+      </label>
+    </section>
+    <p id="settingsStatus" role="status" aria-live="polite">Loading settings…</p>
+    <section class="export-section" aria-labelledby="exportTitle">
+      <h3 id="exportTitle" class="setting-title">Export words</h3>
+      <p class="setting-description" id="exportDescription">Download all saved words as a JSON file.</p>
+      <button id="export" type="button" aria-describedby="exportDescription">Export as JSON</button>
+      <p id="exportStatus" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+  <script src="settings.js"></script>
+</body>
+</html>
