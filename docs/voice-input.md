@@ -12,7 +12,7 @@ available. Page close aborts recognition; old callbacks cannot change input.
 Recording pauses page pronunciation and blocks further playback until it ends.
 
 Audio may be sent to the browser recognition service. No recordings are stored
-by Wordbook. No new manifest permissions, recognition provider, API keys, or
+by Wordbloom. No new manifest permissions, recognition provider, API keys, or
 background recording were introduced. Unsupported browsers keep manual input.
 If permission closes the popup, use the existing full-page button and retry;
 permission sharing between page contexts is not assumed.
@@ -48,7 +48,7 @@ recording, and final text is populated without saving. This fixture does not
 verify real audio or extension-origin permissions. Independent Standards and
 Spec code reviews reported zero findings each.
 
-For production acceptance in each target Chrome/Edge version, reload Wordbook
+For production acceptance in each target Chrome/Edge version, reload Wordbloom
 from its own extension directory and test both the real action popup and
 `full.html`: initial permission; apple and non-deterministic; stop/final result;
 Escape/original text; no speech; denied permission; unavailable service and

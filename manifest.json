@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Wordbook",
+  "name": "Wordbloom",
   "version": "1.0.0",
   "description": "Save unfamiliar words from any page via the context menu; meaning, part of speech, and example sentence are auto-filled.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA76S9gK2ntN9iKBWm6Lq0V89BV/XXsLyRei6fpV/4pQAKgRPjm4AivzaXVpP4p/2h6ZX3oXUYYpdjj/oUzqw+PdYP+Eg94Nths6ac4FZzh5gNMfv/f6Esqu31hGt2hpFgKO72TdjqVvepn2ubVqCJqgdo/TrIKw3GOwRiuamTg8QADvUrkdRwUxSYNHKZVarW/SvUS2AYlZQhO2z7enMvToqq1/My82MsCASam4Fv3bonYJ8nyI3xLY0C1i0WTYVMZKxJFgh4WUAX/0aK6YG5EzCK0ZDWoJMztSCo5D9u5H252PjIdvQXZmYE6odYgSxzvo+LrH5RY7XupBrqBv/UQQIDAQAB",
@@ -25,7 +25,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "Wordbook",
+    "default_title": "Wordbloom",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",

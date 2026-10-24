@@ -8,7 +8,7 @@ function harness() {
   const clips = [];
   let listener;
   const context = vm.createContext({
-    chrome: { runtime: { id:'wordbook', onMessage: { addListener(fn) { listener = fn; } } } },
+    chrome: { runtime: { id:'wordbloom', onMessage: { addListener(fn) { listener = fn; } } } },
     Audio: class {
       constructor(url) { this.url = url; this.plays = 0; this.pauses = 0; clips.push(this); }
       play() { this.plays++; return this.failure ? Promise.reject(this.failure) : Promise.resolve(); }
@@ -49,11 +49,11 @@ test('offscreen document accepts only validated internal playback messages', asy
   const h = harness();
   const message = {type:'playPronunciation', word:'apple', accent:'uk'};
   assert.equal(h.listener(message, {id:'other'}, () => {}), undefined);
-  assert.equal(h.listener(message, {id:'wordbook', tab:{}}, () => {}), undefined);
-  assert.equal(h.listener({...message, accent:'invalid'}, {id:'wordbook'}, () => {}), undefined);
+  assert.equal(h.listener(message, {id:'wordbloom', tab:{}}, () => {}), undefined);
+  assert.equal(h.listener({...message, accent:'invalid'}, {id:'wordbloom'}, () => {}), undefined);
   assert.equal(h.clips.length, 0);
   const response = await new Promise(resolve => {
-    assert.equal(h.listener(message, {id:'wordbook'}, resolve), true);
+    assert.equal(h.listener(message, {id:'wordbloom'}, resolve), true);
   });
   assert.equal(response.ok, true);
 });

@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Settings · Wordbook</title>
+  <title>Settings · Wordbloom</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="settings.css" />
 </head>
 <body>
-  <header><h1><span class="mark">Wordbook</span></h1></header>
+  <header><h1><span class="mark">Wordbloom</span></h1></header>
   <main>
     <h2>Settings</h2>
     <section aria-label="Translation settings">
@@ -29,7 +29,7 @@
     </section>
     <section class="export-section" aria-labelledby="importTitle">
       <h3 id="importTitle" class="setting-title">Import words</h3>
-      <p class="setting-description" id="importDescription">Import a Wordbook JSON export. Existing words are kept, and missing details are filled from the file.</p>
+      <p class="setting-description" id="importDescription">Import a Wordbloom JSON export. Existing words are kept, and missing details are filled from the file.</p>
       <input id="importFile" type="file" accept=".json,application/json" hidden />
       <button id="import" type="button" aria-describedby="importDescription">Import from JSON</button>
       <p id="importStatus" role="status" aria-live="polite"></p>

@@ -20,7 +20,7 @@ importFile.addEventListener('change', async () => {
     try {
       words = JSON.parse(text.replace(/^\uFEFF/, ''));
     } catch {
-      throw new Error('Invalid JSON file. Choose a Wordbook JSON export.');
+      throw new Error('Invalid JSON file. Choose a Wordbloom JSON export.');
     }
     const result = await chrome.runtime.sendMessage({ type: 'importWords', words });
     if (!result?.ok) throw new Error(result?.error || 'Could not import words. Please try again.');
@@ -46,7 +46,7 @@ exportButton.addEventListener('click', async () => {
     url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `wordbook-${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = `wordbloom-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     exportStatus.textContent = 'Export download started.';
   } catch {

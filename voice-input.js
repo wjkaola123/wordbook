@@ -148,7 +148,7 @@
     }
   }
 
-  window.wordbookVoice = {
+  window.wordbloomVoice = {
     // A missing end event blocks new recording, but never manual adding.
     get busy() { return !!active && active.state !== 'blocked'; },
     refresh

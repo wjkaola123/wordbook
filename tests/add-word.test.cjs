@@ -13,7 +13,7 @@ function harness({ failWrite = false, offline = false } = {}) {
   const context = vm.createContext({
     AbortSignal, TextEncoder, URL, setTimeout, clearTimeout, crypto: { randomUUID },
     chrome: {
-      runtime: { getURL: () => 'chrome-extension://wordbook/', onInstalled: noop, onStartup: noop, onMessage: listener('message') },
+      runtime: { getURL: () => 'chrome-extension://wordbloom/', onInstalled: noop, onStartup: noop, onMessage: listener('message') },
       contextMenus: { onClicked: listener('menu') },
       action: { async setBadgeText() {}, async setBadgeBackgroundColor() {} },
       alarms: { onAlarm: noop, async get() { return {}; } },
@@ -193,7 +193,7 @@ test('content messages cannot clear words, invalid selections cannot query, exte
   const result = await new Promise(resolve => h.dispatch({ type: 'translateSelection', word: 'apple' }, sender, resolve));
   assert.equal(result.saved, true);
   assert.equal(result.meaning, '苹果');
-  h.dispatch({ type: 'editWord', id: 'one', field: 'meaning', value: 'Edited' }, { tab: {}, url: 'chrome-extension://wordbook/full.html' }, () => {});
+  h.dispatch({ type: 'editWord', id: 'one', field: 'meaning', value: 'Edited' }, { tab: {}, url: 'chrome-extension://wordbloom/full.html' }, () => {});
   await h.context.enqueueWordsWrite(() => false);
   assert.equal(h.stored.words[0].meaning, 'Edited');
 });

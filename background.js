@@ -27,10 +27,12 @@ const POS_LABELS = {
 };
 
 chrome.runtime.onInstalled.addListener(() => {
+  // Retire the alarm registered before the rename.
+  chrome.alarms.clear('wordbook-backfill');
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: MENU_ID,
-      title: 'Save "%s" to Wordbook',
+      title: 'Save "%s" to Wordbloom',
       contexts: ['selection']
     });
   });
@@ -122,7 +124,7 @@ async function saveWord(text, source, onSaved = () => {}) {
 // next minute, so a temporary block can't strand words forever. Once nothing
 // more can be tried the alarm removes itself. An explicit re-save of the word
 // resets its count.
-const BACKFILL_ALARM = 'wordbook-backfill';
+const BACKFILL_ALARM = 'wordbloom-backfill';
 const BACKFILL_MAX_PER_RUN = 2;
 const BACKFILL_MAX_ATTEMPTS = 5;
 const BACKFILL_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -303,7 +305,7 @@ function enqueueWordsWrite(mutate, { throwOnError = false } = {}) {
 // Validate the entire backup before entering the write queue. Only known
 // fields are copied; imported IDs must never collide with another word.
 async function importWords(entries) {
-  if (!Array.isArray(entries)) throw new Error('Choose a Wordbook JSON export containing an array of words.');
+  if (!Array.isArray(entries)) throw new Error('Choose a Wordbloom JSON export containing an array of words.');
   const now = Date.now();
   const textFields = ['meaning', 'pos', 'example', 'phonetic', 'url', 'title', 'lastUrl', 'lastTitle'];
   const incoming = entries.map((entry, index) => {

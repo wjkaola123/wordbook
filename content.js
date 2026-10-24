@@ -64,7 +64,7 @@
       #close:not(:disabled):hover { color:#b3261e; background:#fdf1f0; }
       button:disabled { opacity:.65; cursor:default; }
       [hidden] { display:none; }
-    </style><section role="region" aria-label="Wordbook translation"><header><strong></strong><div class="header-actions"><button class="speak" data-accent="uk" aria-label="Pronounce (British)" title="Pronounce (British)"></button><button class="speak" data-accent="us" aria-label="Pronounce (American)" title="Pronounce (American)"></button><button id="close" aria-label="Close">×</button></div></header><small></small><p role="status" aria-live="polite">Translating…</p><button id="save" disabled>Save</button> <button id="retry" hidden>Retry</button></section>`;
+    </style><section role="region" aria-label="Wordbloom translation"><header><strong></strong><div class="header-actions"><button class="speak" data-accent="uk" aria-label="Pronounce (British)" title="Pronounce (British)"></button><button class="speak" data-accent="us" aria-label="Pronounce (American)" title="Pronounce (American)"></button><button id="close" aria-label="Close">×</button></div></header><small></small><p role="status" aria-live="polite">Translating…</p><button id="save" disabled>Save</button> <button id="retry" hidden>Retry</button></section>`;
     const panel = root;
     panel.querySelector('strong').textContent = value.word;
     panel.querySelector('#close').onclick = close;

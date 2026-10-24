@@ -12,7 +12,7 @@ const chrome = [process.env.CHROME_PATH,
 ].find(path => path && existsSync(path));
 
 test('selection card is visible next to the word on a long page', { skip: !chrome }, () => {
-  const folder = mkdtempSync(join(tmpdir(), 'wordbook-content-'));
+  const folder = mkdtempSync(join(tmpdir(), 'wordbloom-content-'));
   try {
     const source = readFileSync(join(__dirname, '../content.js'), 'utf8');
     const html = `<!doctype html><meta charset="utf-8">

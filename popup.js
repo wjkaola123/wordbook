@@ -6,10 +6,10 @@ const addWordStatus = document.getElementById('addWordStatus');
 let savingWord = false;
 
 function updateAddWordControls() {
-  const busy = savingWord || !!globalThis.wordbookVoice?.busy;
+  const busy = savingWord || !!globalThis.wordbloomVoice?.busy;
   addWordForm.querySelector('button[type="submit"]').disabled = busy;
   newWordEl.readOnly = busy;
-  globalThis.wordbookVoice?.refresh();
+  globalThis.wordbloomVoice?.refresh();
 }
 
 document.getElementById('settings')?.addEventListener('click', () => {
@@ -109,7 +109,7 @@ const audioCache = new Map();
 let currentAudio = null;
 
 function speakWord(text, accent) {
-  if (globalThis.wordbookVoice?.busy) return;
+  if (globalThis.wordbloomVoice?.busy) return;
   if (!text) return;
   // Youdao's audio lookup is case-sensitive: "Endearingly" returns 500
   // ("returned null audio"), while "endearingly" has a valid clip.
@@ -157,7 +157,7 @@ function speakWord(text, accent) {
 // speaker (British preferred, matching the UK word buttons), then
 // Chrome's online Google voice, then any English voice.
 function speakSentence(text) {
-  if (globalThis.wordbookVoice?.busy) return;
+  if (globalThis.wordbloomVoice?.busy) return;
   if (!text || !('speechSynthesis' in window)) return;
 
   // Pre-empt a playing dictvoice clip and any earlier utterance (cancel

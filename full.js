@@ -168,7 +168,7 @@ function navigate(dir) {
 
 function setMode(next) {
   mode = next;
-  localStorage.setItem('wordbook-view', next);
+  localStorage.setItem('wordbloom-view', next);
 
   listEl.hidden = next === 'read';
   readerEl.hidden = next !== 'read';
@@ -260,4 +260,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (touched) renderReader();
 });
 
-setMode(localStorage.getItem('wordbook-view') === 'read' ? 'read' : 'grid');
+// Keep the reading preference when upgrading from the previous name.
+const savedMode = localStorage.getItem('wordbloom-view') ?? localStorage.getItem('wordbook-view');
+setMode(savedMode === 'read' ? 'read' : 'grid');

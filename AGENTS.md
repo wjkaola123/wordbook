@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-Wordbook is a Manifest V3 Chrome extension built with vanilla JavaScript, HTML, and CSS. Runtime files live at the repository root:
+Wordbloom is a Manifest V3 Chrome extension built with vanilla JavaScript, HTML, and CSS. Runtime files live at the repository root:
 
 - `manifest.json` declares permissions, entry points, and content scripts.
 - `background.js` handles word storage, lookup, synchronization, and runtime messages.
