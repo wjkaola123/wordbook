@@ -209,16 +209,14 @@ header button svg {
 #voiceInput[aria-pressed="true"] .voice-mic { display: none; }
 #voiceInput[aria-pressed="true"] .voice-stop { display: block; }
 
-#voiceNotice {
-  margin: 4px 0 0;
-  font-size: 11px;
-  color: var(--soft-ink);
-}
-
 #addWordStatus {
   margin: 5px 0 0;
   font-size: 11.5px;
   color: var(--muted);
+}
+
+#addWordStatus:empty {
+  display: none;
 }
 
 #addWordStatus.error {
