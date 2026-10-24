@@ -182,8 +182,8 @@ header button svg {
 }
 
 .add-word-row button[type="submit"]:hover:not(:disabled) {
-  color: var(--soft-ink);
-  background: var(--fill);
+  color: var(--accent);
+  background: var(--accent-tint);
 }
 
 .add-word-row button[type="submit"]:active:not(:disabled) {
