@@ -30,13 +30,21 @@
   <input id="search" placeholder="Search words, meanings, examples" autofocus />
   <form id="addWordForm" class="add-word-form">
     <div class="add-word-row">
-      <input id="newWord" aria-label="New word" placeholder="Enter a new word" required autocomplete="off" aria-describedby="addWordStatus" />
+      <div class="new-word-input">
+        <input id="newWord" aria-label="New word" placeholder="Enter a new word" required autocomplete="off" aria-describedby="addWordStatus voiceNotice" />
+        <button id="voiceInput" type="button" aria-label="Start voice input" title="Start voice input" aria-pressed="false">
+          <svg class="voice-mic" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><rect x="6" y="1.5" width="4" height="8" rx="2"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5M5.5 14.5h5"/></svg>
+          <svg class="voice-stop" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="1.5"/></svg>
+        </button>
+      </div>
       <button type="submit">Add word</button>
     </div>
     <p id="addWordStatus" role="status" aria-live="polite">Meaning, part of speech, example and phonetic are filled automatically.</p>
+    <p id="voiceNotice">Voice input may send audio to your browser recognition service online. Wordbook does not store recordings. If permission closes this popup, open the full page to try voice input.</p>
   </form>
   <div id="list"></div>
 
   <script src="popup.js"></script>
+  <script src="voice-input.js"></script>
 </body>
 </html>

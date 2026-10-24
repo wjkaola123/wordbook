@@ -141,10 +141,17 @@ header button svg {
   gap: 8px;
 }
 
-#newWord {
+.new-word-input {
   flex: 1;
   min-width: 0;
-  padding: 7px 10px;
+  position: relative;
+  display: flex;
+}
+
+#newWord {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 38px 7px 10px;
   border: 1px solid var(--hairline);
   border-radius: 8px;
   font: inherit;
@@ -157,7 +164,7 @@ header button svg {
   outline-offset: 1px;
 }
 
-.add-word-row button {
+.add-word-row button[type="submit"] {
   flex: none;
   padding: 7px 12px;
   border: 1px solid var(--hairline);
@@ -171,6 +178,41 @@ header button svg {
 .add-word-row button:disabled {
   opacity: 0.6;
   cursor: wait;
+}
+
+#voiceInput {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  padding: 8px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+#voiceInput:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+#voiceInput[aria-pressed="true"] {
+  color: var(--red);
+  background: var(--red-tint);
+}
+
+#voiceInput svg { display: block; }
+#voiceInput .voice-stop { display: none; }
+#voiceInput[aria-pressed="true"] .voice-mic { display: none; }
+#voiceInput[aria-pressed="true"] .voice-stop { display: block; }
+
+#voiceNotice {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--soft-ink);
 }
 
 #addWordStatus {

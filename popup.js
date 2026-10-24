@@ -3,6 +3,14 @@ const searchEl = document.getElementById('search');
 const addWordForm = document.getElementById('addWordForm');
 const newWordEl = document.getElementById('newWord');
 const addWordStatus = document.getElementById('addWordStatus');
+let savingWord = false;
+
+function updateAddWordControls() {
+  const busy = savingWord || !!globalThis.wordbookVoice?.busy;
+  addWordForm.querySelector('button[type="submit"]').disabled = busy;
+  newWordEl.readOnly = busy;
+  globalThis.wordbookVoice?.refresh();
+}
 
 document.getElementById('settings')?.addEventListener('click', () => {
   chrome.runtime.openOptionsPage();
@@ -11,7 +19,7 @@ document.getElementById('settings')?.addEventListener('click', () => {
 addWordForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const word = newWordEl.value.replace(/\s+/g, ' ').trim();
-  const button = addWordForm.querySelector('button');
+  const button = addWordForm.querySelector('button[type="submit"]');
   if (button.disabled) return;
   if (!word) {
     addWordStatus.textContent = 'Enter a word to add.';
@@ -19,8 +27,8 @@ addWordForm.addEventListener('submit', async (event) => {
     return;
   }
 
-  button.disabled = true;
-  newWordEl.readOnly = true;
+  savingWord = true;
+  updateAddWordControls();
   addWordStatus.classList.remove('error');
   addWordStatus.textContent = 'Saving word…';
   try {
@@ -38,8 +46,8 @@ addWordForm.addEventListener('submit', async (event) => {
     addWordStatus.classList.add('error');
     addWordStatus.textContent = error.message || 'Could not save the word. Please try again.';
   } finally {
-    button.disabled = false;
-    newWordEl.readOnly = false;
+    savingWord = false;
+    updateAddWordControls();
     newWordEl.focus();
   }
 });
@@ -101,6 +109,7 @@ const audioCache = new Map();
 let currentAudio = null;
 
 function speakWord(text, accent) {
+  if (globalThis.wordbookVoice?.busy) return;
   if (!text) return;
   // Youdao's audio lookup is case-sensitive: "Endearingly" returns 500
   // ("returned null audio"), while "endearingly" has a valid clip.
@@ -148,6 +157,7 @@ function speakWord(text, accent) {
 // speaker (British preferred, matching the UK word buttons), then
 // Chrome's online Google voice, then any English voice.
 function speakSentence(text) {
+  if (globalThis.wordbookVoice?.busy) return;
   if (!text || !('speechSynthesis' in window)) return;
 
   // Pre-empt a playing dictvoice clip and any earlier utterance (cancel
