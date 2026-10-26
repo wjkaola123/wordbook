@@ -1,0 +1,11 @@
+[
+  { "step": "baseline", "action": "Run existing tests using expanded tests/*.test.cjs", "result": "46 pass, 0 fail, 0 skipped" },
+  { "step": "inventory", "action": "cua.getState()", "result": "Windows native apps available; in-app and MCP Apps browsers; no connected Chrome DOM browser" },
+  { "step": "edge-launch", "action": "instance.ps1 launch with isolated Edge profile", "result": "instance.json saved; window inventory returned a new-tab window" },
+  { "step": "edge-bind", "action": "cua.getApp({windowId:787776})", "result": "verifier-blocked: controller could not determine current browser URL with enough confidence to enforce policy" },
+  { "step": "edge-cleanup", "action": "instance.ps1 cleanup", "result": "profile removed; 0 owned processes remain" },
+  { "step": "lifecycle-smoke", "action": "launch, doctor, finally cleanup", "result": "doctor: Owned browser instance is not running.; cleanup passed" },
+  { "step": "chrome-launch", "action": "User requested Chrome; launch isolated Chrome profile", "result": "chrome/instance.json saved; inventory returned expected extension URL in window title, rendered app readiness unknown" },
+  { "step": "chrome-bind", "action": "cua.getApp({windowId:788284})", "result": "verifier-blocked: controller could not determine current browser URL with enough confidence to enforce policy" },
+  { "step": "chrome-cleanup", "action": "process doctor, finally cleanup", "result": "See chrome/doctor*.json or doctor-error.txt and chrome/cleanup.json; no further UI input" }
+]

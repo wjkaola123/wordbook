@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Wordbloom voice feasibility probe",
+  "version": "0.1.0",
+  "description": "Disposable WB-1 speech recognition probe. Does not access Wordbloom data.",
+  "action": {
+    "default_title": "WB-1 voice probe",
+    "default_popup": "probe.html"
+  }
+}

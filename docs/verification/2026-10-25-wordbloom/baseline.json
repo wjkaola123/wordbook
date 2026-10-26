@@ -1,0 +1,105 @@
+{
+  "capturedAt": "2026-10-25T11:45:22.0936206+08:00",
+  "node": "v24.19.0",
+  "commit": "99d8eb89ef70976f686035e62c460a107860141d",
+  "testExitCode": 0,
+  "syntaxPassed": true,
+  "sources": [
+    {
+      "file": "manifest.json",
+      "sha256": "0AA4F1FE5D302994E9E69CAB03935D614674F372C9D80E10C722422D56498A70"
+    },
+    {
+      "file": "AGENTS.md",
+      "sha256": "98635288F6085BB1DC7EF7F2CF82BF1F1CD76056B4D65517A25679D7B47D1012"
+    },
+    {
+      "file": "audio.html",
+      "sha256": "BC5D5659E09B7689806ABEA4C0B2F9EE4951344656A88CA532BF984E9A798B17"
+    },
+    {
+      "file": "audio.js",
+      "sha256": "B953FE8C75264D0063F71C30141B03ACB3A0C439F700C530DC5BFAA309748E7A"
+    },
+    {
+      "file": "background.js",
+      "sha256": "1DAAEEB2B8697F3E31C2BD0694F09B488DD79408ED4CCC420644934BE730AD8C"
+    },
+    {
+      "file": "content.js",
+      "sha256": "B7EFA2622B0F894E76E611384B85A3E2CBF928FC2D1C21CA2855D6FD17729C66"
+    },
+    {
+      "file": "full.html",
+      "sha256": "E95176FB474701306776C178DF6729A80A86CB558803B122591F2E5D9311D9AE"
+    },
+    {
+      "file": "full.js",
+      "sha256": "8E108459B7CCE0651D82F11E22D75720385D81D75A89DC9D90D1DB304DDB2C13"
+    },
+    {
+      "file": "popup.html",
+      "sha256": "5D8D57AFD697B148E564D9F775DDC61E6DC76061C29F5A92B119288F0A0AAF45"
+    },
+    {
+      "file": "popup.js",
+      "sha256": "A292C2BD80BFF9EFF306DA9D643815AC33C12358DC2B3EDFC037CB0BC5D0B390"
+    },
+    {
+      "file": "settings.css",
+      "sha256": "B8D6749EB2A32FF924219E6B0DBAAA006D24AB59D7A890DC33C8F035BFFE6861"
+    },
+    {
+      "file": "settings.html",
+      "sha256": "F44CB5294C0A0A6CB5F6B82C88BDE32F9B5DCB4938D59F27599B08D056CF0DB3"
+    },
+    {
+      "file": "settings.js",
+      "sha256": "1EA12CBE412B4D575B807BAD84CAE82501796ADE0DF6C754539FEB981B186F10"
+    },
+    {
+      "file": "show-me-pstack.html",
+      "sha256": "CC2A81B56F5F7D3D94DE68364CD719DAAF9393CBDB0B8C45CB294119AE707A90"
+    },
+    {
+      "file": "styles.css",
+      "sha256": "37B7AA64FAB9AD2E025965A3FD36C5E06676D47C1E01C3A139E6EF22B8EED81C"
+    },
+    {
+      "file": "voice-input.js",
+      "sha256": "F088778599F3E0FD0172FCAB6C7DC2258626AFA761771A71A2BA0FBA29BFE2FE"
+    },
+    {
+      "file": "tests/add-word.test.cjs",
+      "sha256": "AE09CE1597E4C5116B1C317414D0344F35684A6B69285A1993033E705BE8C2ED"
+    },
+    {
+      "file": "tests/content.test.cjs",
+      "sha256": "684D823644215D633CE35522E6F676692DA23E02D6EF5C632CB71A1E35BB9BF5"
+    },
+    {
+      "file": "tests/pronunciation.test.cjs",
+      "sha256": "F32D785A552FF1D3D113FB8FA49BE0DF18B3362BB6DD0A963C949B14E7B4089A"
+    },
+    {
+      "file": "tests/rename.test.cjs",
+      "sha256": "3DE37293D1CABC43EA1AE092419850C0310E97EF3DCDA75912461407E325E77B"
+    },
+    {
+      "file": "tests/selection-audio.test.cjs",
+      "sha256": "F777EBA7553EB1D991BD2B57F44AF2652DA94C2B05D59A29E0E76B861CA131BC"
+    },
+    {
+      "file": "tests/settings.test.cjs",
+      "sha256": "5C440836AF80C04DCA8069809BD86D0F22E991733C329F8812648DBDFA86597D"
+    },
+    {
+      "file": "tests/translation.test.cjs",
+      "sha256": "DB12273D7B413621581CF2AC59C0C96B1A86C0A8B9A94F6CB962DBA9692181FB"
+    },
+    {
+      "file": "tests/voice-input.test.cjs",
+      "sha256": "C6351901A8EB8DEA86C13FB22799A32796A8C5BB1664565D2D4FCBB7446548BD"
+    }
+  ]
+}

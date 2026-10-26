@@ -1,0 +1,37 @@
+[
+  {
+    "file": "audio.js",
+    "exitCode": 0,
+    "output": ""
+  },
+  {
+    "file": "background.js",
+    "exitCode": 0,
+    "output": ""
+  },
+  {
+    "file": "content.js",
+    "exitCode": 0,
+    "output": ""
+  },
+  {
+    "file": "full.js",
+    "exitCode": 0,
+    "output": ""
+  },
+  {
+    "file": "popup.js",
+    "exitCode": 0,
+    "output": ""
+  },
+  {
+    "file": "settings.js",
+    "exitCode": 0,
+    "output": ""
+  },
+  {
+    "file": "voice-input.js",
+    "exitCode": 0,
+    "output": ""
+  }
+]

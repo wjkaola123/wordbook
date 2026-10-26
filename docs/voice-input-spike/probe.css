@@ -1,0 +1,12 @@
+body { box-sizing: border-box; width: 380px; max-width: 100vw; margin: 0; padding: 16px; font: 14px/1.5 system-ui, sans-serif; color: #242424; background: #fff; }
+h1 { font-size: 20px; margin: 0; }
+h2 { font-size: 16px; }
+label { display: block; }
+input, textarea { box-sizing: border-box; width: 100%; padding: 8px; font: inherit; }
+.buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+button { padding: 8px; cursor: pointer; }
+button:disabled { cursor: default; }
+:focus-visible { outline: 2px solid #1764bd; outline-offset: 2px; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; max-height: 240px; overflow-y: auto; background: #f3f3f3; padding: 8px; }
+#status { font-weight: 600; }
+@media (min-width: 600px) { body { width: 760px; max-width: 100%; margin: auto; } }
